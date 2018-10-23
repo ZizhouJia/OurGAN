@@ -1,15 +1,14 @@
+# -*- coding: UTF-8 -*-
 import os
 import torch
 import torch.nn as nn
 import numpy as np
 import torchvision.transforms as transforms
 
-
-
-
 class random_noise(torch.utils.data.Dataset):
     def __init__(self,transform=transforms.ToTensor()):
-        self.train_x=np.random.normal(100000,10,1,1)
+        self.train_x=np.random.randn(100000,1,1,10).astype(np.float32)
+        self.transform=transform
 
     def __getitem__(self,index):
 
@@ -17,4 +16,7 @@ class random_noise(torch.utils.data.Dataset):
 
 
     def __len__(self):
-        return self.train_x
+        return len(self.train_x)
+
+def get_noise_numpy(batch_size=1):
+    return np.random.randn(batch_size,10,1,1)

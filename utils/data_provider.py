@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import torch
 import torch.utils.data as Data
 
@@ -11,8 +12,8 @@ class data_provider:
        self.epoch = 0  # 统计训练了多少个epoch
 
    def build(self):
-       dataloader = Data.Loader(self.dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=True)
-       self.dataiter = Data.DataLoaderIter(dataloader)
+       dataloader = Data.DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=True)
+       self.dataiter =iter(dataloader)
 
    def next(self):
        if self.dataiter is None:
