@@ -46,6 +46,8 @@ class minst_color(torch.utils.data.Dataset):
         else:
             image1=self.test_x[index]*image1
             image2=self.test_x[index]*image2
+        image1=image1*2-1
+        iamge2=image2*2-1
 
         return self.transform(image1),self.transform(image2)
 
