@@ -52,9 +52,9 @@ def forward_and_get_loss(models,x1,x2,feature_real,step):
     feature_D_loss=D_real_loss(dis_feature_real)+D_fake_loss(dis_feature_fake_x1)+D_fake_loss(dis_feature_fake_x2)
     image_D_loss=D_real_loss(dis_x1_real)+D_real_loss(dis_x2_real)+D_fake_loss(dis_x1_fake)+D_fake_loss(dis_x2_fake)
 
-    G_loss=G_fake_loss(dis_x1_fake)+G_fake_loss(dis_x2_fake)
-    # +G_fake_loss(dis_feature_fake_x1)+G_fake_loss(dis_feature_fake_x2)
-    return reconst_loss,feature_D_loss,image_D_loss,G_loss
+    G_image_loss=G_fake_loss(dis_x1_fake)+G_fake_loss(dis_x2_fake)
+    G_feature_loss=G_fake_loss(dis_feature_fake_x1)+G_fake_loss(dis_feature_fake_x2)
+    return reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss
 
 def zero_grad_for_all(optimizers):
     for optimizer in optimizers:
@@ -62,7 +62,7 @@ def zero_grad_for_all(optimizers):
 
 
 
-def generate_optimizers(models,lr=[0.001,0.001,0.01,0.1],weight_decay=0.0001,momentum=0.9):
+def generate_optimizers(models,lr=[0.001,0.001,0.001,0.001],weight_decay=0.0001,momentum=0.9):
     encoder,decoder,dis_image,dis_feature=models
     optimizers=[]
     for i in range(0,len(models)):
@@ -101,8 +101,9 @@ def restore_models(models,save_path="checkpoints"):
         models[i].load_state_dict(torch.load(os.path.join(save_path,file_name[i])))
 
 
-def report_loss(reconst_loss,feature_D_loss,image_D_loss,G_loss,step):
-    print("In step %d  rstl:%.4f fdl:%.4f idl:%.4f gl:%.4f"%(step,reconst_loss.cpu().item(),feature_D_loss.cpu().item(),image_D_loss.cpu().item(),G_loss.cpu().item()))
+def report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,step):
+    print("In step %d  rstl:%.4f dfl:%.4f dil:%.4f gil:%.4f gfl:%.4f"%(step,reconst_loss.cpu().item(),feature_D_loss.cpu().item(),
+    image_D_loss.cpu().item(),G_image_loss.cpu().item(),G_feature_loss.cpu().item()))
 
 
 
@@ -127,6 +128,7 @@ def train():
     epoch=100
     encoder_optimizer,decoder_optimizer,image_D_optimizer,feature_D_optimizer=optimizers
     for i in range(0,epoch):
+        print("begin the epoch : %d"%(epoch))
         for step,(x1,x2) in enumerate(mnist_loader):
             noise=noise_loader.next()
             if(is_cuda):
@@ -135,27 +137,25 @@ def train():
                 noise=noise.cuda()
             #开始训练过程
             #先更新image discriminator
-            reconst_loss,feature_D_loss,image_D_loss,G_loss=forward_and_get_loss(models,x1,x2,noise,step)
-            image_D_loss.backward()
+            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step)
+            image_D_loss.backward(retain_graph=True)
             image_D_optimizer.step()
             zero_grad_for_all(optimizers)
 
-            # #再更新feature discriminator
-            # reconst_loss,feature_D_loss,image_D_loss,G_loss=forward_and_get_loss(models,x1,x2,noise)
-            # feature_D_loss.backward()
-            # feature_D_optimizer.step()
-            # zero_grad_for_all(optimizers)
+            #再更新feature discriminator
+            feature_D_loss.backward(retain_graph=True)
+            feature_D_optimizer.step()
+            zero_grad_for_all(optimizers)
 
             #最后更新Generator
-            reconst_loss,feature_D_loss,image_D_loss,G_loss=forward_and_get_loss(models,x1,x2,noise,step)
-            total_loss=reconst_loss*1.0+G_loss
+            total_loss=reconst_loss*1.0+G_image_loss+G_feature_loss
             total_loss.backward()
             decoder_optimizer.step()
             encoder_optimizer.step()
             zero_grad_for_all(optimizers)
 
             if(step%100==0):
-                report_loss(reconst_loss,feature_D_loss,image_D_loss,G_loss,step)
+                report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,step)
         if((epoch+1)%10==0):
             save_models(models)
 
