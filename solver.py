@@ -49,7 +49,7 @@ def forward(models,x1,x2,feature_real):
 def forward_and_get_loss(models,x1,x2,feature_real,step):
     x1,x2,x1_fake,x2_fake,dis_x1_real,dis_x2_real,dis_x1_fake,dis_x2_fake,feature_real,dis_feature_real,dis_feature_fake_x1,dis_feature_fake_x2=forward(models,x1,x2,feature_real)
     reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
-    feature_D_loss=D_real_loss(dis_feature_real)+D_fake_loss(dis_feature_fake_x1)+D_fake_loss(dis_feature_fake_x2)
+    feature_D_loss=D_real_loss(dis_feature_real)+(D_fake_loss(dis_feature_fake_x1)+D_fake_loss(dis_feature_fake_x2))/2
     image_D_loss=D_real_loss(dis_x1_real)+D_real_loss(dis_x2_real)+D_fake_loss(dis_x1_fake)+D_fake_loss(dis_x2_fake)
 
     G_image_loss=G_fake_loss(dis_x1_fake)+G_fake_loss(dis_x2_fake)
@@ -62,12 +62,17 @@ def zero_grad_for_all(optimizers):
 
 
 
+#生成器使用带动量的SGD，判别器使用Adam
 def generate_optimizers(models,lr=[0.001,0.001,0.001,0.001],weight_decay=0.0001,momentum=0.9):
     encoder,decoder,dis_image,dis_feature=models
     optimizers=[]
     for i in range(0,len(models)):
         optimizer=torch.optim.SGD(models[i].parameters(),lr=lr[i],weight_decay=weight_decay,momentum=momentum)
         optimizers.append(optimizer)
+
+    # for i in range(2,4):
+    #     optimizer=torch.optim.SGD(models[i].parameters(),lr=lr[i],weight_decay=weight_decay)
+    #     optimizers.append(optimizer)
     return optimizers
 
 
@@ -83,7 +88,7 @@ def generate_models():
     models.append(feature_dis)
     return models
 
-def generate_dataset(batch_size=2):
+def generate_dataset(batch_size=32):
     #创建数据集，这个数据集每次调用返回两张图片，一张为某种颜色的手写字，另外一张为另一种颜色的手写字
     mnist_loader=Data.DataLoader(mnist_color.minst_color(path="dataset/mnist_color/data/raw/"),batch_size=batch_size,shuffle=True,num_workers=0)
     #创建一个随机噪声当做学习的中间特征的表达形式
@@ -122,13 +127,13 @@ def train():
             models[i]=models[i].cuda()
 
     optimizers=generate_optimizers(models)
-    mnist_loader,noise_loader=generate_dataset(batch_size=16)
+    mnist_loader,noise_loader=generate_dataset(batch_size=32)
 
     #epoch的次数，这里先写成变量，以后会加入到config文件中
     epoch=100
     encoder_optimizer,decoder_optimizer,image_D_optimizer,feature_D_optimizer=optimizers
     for i in range(0,epoch):
-        print("begin the epoch : %d"%(epoch))
+        print("begin the epoch : %d"%(i))
         for step,(x1,x2) in enumerate(mnist_loader):
             noise=noise_loader.next()
             if(is_cuda):
@@ -148,7 +153,7 @@ def train():
             zero_grad_for_all(optimizers)
 
             #最后更新Generator
-            total_loss=reconst_loss*1.0+G_image_loss+G_feature_loss
+            total_loss=reconst_loss*10+G_image_loss+G_feature_loss*0.2
             total_loss.backward()
             decoder_optimizer.step()
             encoder_optimizer.step()
@@ -156,7 +161,8 @@ def train():
 
             if(step%100==0):
                 report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,step)
-        if((epoch+1)%10==0):
+        if((i+1)%10==0):
+            print("saving model")
             save_models(models)
 
 @click.command()
