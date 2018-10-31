@@ -14,20 +14,45 @@ def reconstruction_loss(x1,x2):
     loss=torch.abs(x1-x2).mean()
     return loss
 
-def D_real_loss(output):
-    distance=(output-1.0)*(output-1.0)
-    loss=distance.mean()
-    return loss
+def D_real_loss(output,loss_func="lsgan"):
+    if(loss_func=="lsgan"):
+        distance=(output-1.0)*(output-1.0)
+        loss=distance.mean()
+        return loss
 
-def D_fake_loss(output):
-    distance=output*output
-    loss=distance.mean()
-    return loss
+    if(loss_func=="wgan"):
+        return (-output).mean()
 
-def G_fake_loss(output):
-    distance=(output-1)*(output-1)
-    loss=distance.mean()
-    return loss
+    if(loss_func =="hinge"):
+        real_loss =torch.functional.F.relu(1.0 - output).mean()
+        return real_loss
+
+def D_fake_loss(output,loss_func="lsgan"):
+    if(loss_func=="lsgan"):
+        distance=output*output
+        loss=distance.mean()
+        return loss
+
+    if(loss_func=="wgan"):
+        return output.mean()
+
+    if(loss_func =="hinge"):
+        real_loss =torch.functional.F.relu(1.0 + output).mean()
+        return real_loss
+
+
+def G_fake_loss(output,loss_func="lsgan"):
+    if(loss_func=="lsgan"):
+        distance=(output-1)*(output-1)
+        loss=distance.mean()
+        return loss
+
+    if(loss_func=="wgan"):
+        return (-output).mean()
+
+    if(loss_func=="hinge"):
+        return (-output).mean()
+
 
 def forward(models,x1,x2,feature_real):
     encoder,decoder,dis_image,dis_feature=models
@@ -216,7 +241,8 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,f
 @click.option('--dataset_name',default="mnist",type=click.Choice(["mnist"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist"]),help="the string that  defines the current model use")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
-def test(batch_size,dataset_name,model_name,model_save_path):
+@click.option('--file_save_path',default="test_output",type=str,help="the model save path")
+def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):
     is_cuda=False
     if(torch.cuda.is_available()):
         is_cuda=True
@@ -235,12 +261,15 @@ def test(batch_size,dataset_name,model_name,model_save_path):
 
     mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=False)
 
+
     for step,(x1,x2) in enumerate(mnist_loader):
         noise=noise_loader.next()
         if(is_cuda):
             x1=x1.cuda()
             x2=x2.cuda()
             noise=noise.cuda()
+
+
         conv1,diff1=encoder(x1)
         conv2,diff2=encoder(x2)
         x_new1=decoder(conv1,noise)
@@ -258,7 +287,7 @@ def test(batch_size,dataset_name,model_name,model_save_path):
             image[x1.shape[1]:x1.shape[1]*2,x1.shape[2]:x1.shape[2]*2,:]=(x_new2[j,:,:,:]+1)/2
             image=image*255
             image=image.astype(np.int32)
-            cv2.imwrite(os.path.join(file_output_path,"test_"+str(step*100+j)+".jpg"),image)
+            cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
         break
 
 @click.group()
