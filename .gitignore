@@ -2,3 +2,4 @@ checkpoints/*
 dataset/mnist_color/data/*
 *.pyc
 .remote-sync.json
+test_output/*
