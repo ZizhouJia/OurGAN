@@ -3,6 +3,8 @@ from PIL import Image
 import torch
 import torchvision.transforms as transforms
 import os
+import random
+import FaceImageFolder
 
 #file is image?
 def has_file_allowed_extension(filename,extensions):
@@ -27,20 +29,28 @@ def make_dataset(dir,class_to_idx,extentions):
 
         for root, _, fnames in sorted(os.walk(d)):
             for fname in sorted(fnames):
-                if has_file_allowed_extension(fname, extensions):
+                if has_file_allowed_extension(fname, extentions):
                     path = os.path.join(root, fname)
                     item = (path, class_to_idx[target])
                     images.append(item)
     return images
 
-
-
+#id->"0" all images
+def get_class_items(samples, classes):
+    classlen = len(classes)
+    classitem = [[]]*classlen
+    #print(samples)
+    for i, (path, id) in enumerate(samples):
+        item = (path, i)
+        classitem[id].append(item)
+    return classitem
 
 
 class FaceDatasetFolder(torch.utils.data.Dataset):
     def __init__(self, root, loader, extensions, transform=None, target_transform=None):
         classes, class_to_idx = find_classes(root)
         samples = make_dataset(root, class_to_idx, extensions)
+        classitem = get_class_items(samples, classes)
         self.root = root
         self.loader = loader
         self.extensions = extensions
@@ -48,23 +58,32 @@ class FaceDatasetFolder(torch.utils.data.Dataset):
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.samples = samples
+        self.classitem = classitem
 
 #self.train = train
         self.transform = transform
         self.target_transform = target_transform
 
 
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        coindex = random.randint(0, 37)
+        (path2, index2) = self.classitem[target][coindex]
+        while index2 == index:
+            coindex = random.randint(0, 37)
+            (path2, index2) = self.classitem[target][coindex]
 
-
-    def __getitem__(self,index):
-
-
+        sample = self.loader(path)
+        sample2 = self.loader(path2)
+        if self.transform is not None:
+            sample = self.transforms(sample)
+            sample2 = self.transforms(sample2)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        return (sample, sample2) #, target
 
 
 
 
     def __len__(self):
-        if(self.train):
-            return len(self.train)
-        else:
-            return len(self.test)
+        return len(self.samples)

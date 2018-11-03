@@ -9,6 +9,7 @@ import dataset.mnist_color.mnist_edge as mnist_edge
 import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
+import dataset.face_point.FaceImageFolder as FaceImageFolder
 
 
 #weight initialization
@@ -130,6 +131,19 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
 
+    if(dataset_name=='face_point'):
+        if(train):
+            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/train/")
+            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+            return imageloader, mnist_edge_loader
+        else:
+            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/test/")
+            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+            return imageloader, mnist_edge_loader
+
+
 #models
 def generate_models(model_name):
     if(model_name=='GAN_mnist'):
@@ -144,6 +158,18 @@ def generate_models(model_name):
         models.append(feature_dis)
         return models
     if(model_name=='GAN_mnist_style'):
+        models=[]
+        encoder=GAN_module_mnist_style.encoder()
+        models.append(encoder)
+        decoder=GAN_module_mnist_style.decoder()
+        models.append(decoder)
+        image_dis=GAN_module_mnist_style.discriminator_for_image()
+        models.append(image_dis)
+        feature_dis=GAN_module_mnist_style.discriminator_for_difference()
+        models.append(feature_dis)
+        return models
+
+    if(model_name=='GAN_face_point'):
         models=[]
         encoder=GAN_module_mnist_style.encoder()
         models.append(encoder)
