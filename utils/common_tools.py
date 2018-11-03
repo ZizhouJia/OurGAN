@@ -25,8 +25,7 @@ def weights_init(init_type='default'):
                 nn.init.orthogonal_(m.weight.data, gain=math.sqrt(2))
             elif init_type == 'default':
                 pass
-            else:
-                assert 0, "Unsupported initialization: {}".format(init_type)
+
     return init_func
 
 
@@ -50,9 +49,6 @@ def D_real_loss(output,loss_func="lsgan"):
         real_loss =torch.functional.F.relu(1.0 - output).mean()
         return real_loss
 
-    else:
-        assert 0, "Unsupported loss function: {}".format(loss_func)
-
 def D_fake_loss(output,loss_func="lsgan"):
     if(loss_func=="lsgan"):
         distance=output*output
@@ -67,9 +63,6 @@ def D_fake_loss(output,loss_func="lsgan"):
     if(loss_func =="hinge"):
         real_loss =torch.functional.F.relu(1.0 + output).mean()
         return real_loss
-
-    else:
-        assert 0, "Unsupported loss function: {}".format(loss_func)
 
 
 def G_fake_loss(output,loss_func="lsgan"):
@@ -86,24 +79,21 @@ def G_fake_loss(output,loss_func="lsgan"):
     if(loss_func=="hinge"):
         return (-output).mean()
 
-    else:
-        assert 0, "Unsupported loss function: {}".format(loss_func)
-
 
 #optimizer
-def generate_optimizers(models,lrs,optimizer_type="SGD",weight_decay=0.001):
+def generate_optimizers(models,lrs,optimizer_type="sgd",weight_decay=0.001):
     optimizers=[]
     if(optimizer_type=="sgd"):
         for i in range(0,len(models)):
             optimizer=torch.optim.SGD(models[i].parameters(),lr=lrs[i],weight_decay=weight_decay,momentum=0.9)
+            optimizer=nn.DataParallel(optimizer)
             optimizers.append(optimizer)
 
     if(optimizer_type=="adam"):
         for i in range(0,len(models)):
             optimizer=torch.optim.Adam(models[i].parameters(),lr=lrs[i],weight_decay=weight_decay,betas=(0.5, 0.999))
+            optimizer=nn.DataParallel(optimizer)
             optimizers.append(optimizer)
-    else:
-        assert 0, "Unsupported optimizer: {}".format(optimizer_type)
     return optimizers
 
 #dataset
@@ -130,6 +120,10 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
 
+def parallel(models):
+    for i in range(0,len(models)):
+        models[i]=nn.DataParallel(models[i])
+
 #models
 def generate_models(model_name):
     if(model_name=='GAN_mnist'):
@@ -142,7 +136,7 @@ def generate_models(model_name):
         models.append(image_dis)
         feature_dis=GAN_module_mnist.discriminator_for_difference()
         models.append(feature_dis)
-        return models
+
     if(model_name=='GAN_mnist_style'):
         models=[]
         encoder=GAN_module_mnist_style.encoder()
@@ -153,4 +147,6 @@ def generate_models(model_name):
         models.append(image_dis)
         feature_dis=GAN_module_mnist_style.discriminator_for_difference()
         models.append(feature_dis)
-        return models
+
+    parallel(models)
+    return models
