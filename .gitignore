@@ -1,5 +1,6 @@
 checkpoints/*
 dataset/mnist_color/data/*
+dataset/face_point/data/*
 *.pyc
 .remote-sync.json
 test_output/*
