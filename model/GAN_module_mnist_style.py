@@ -39,7 +39,7 @@ class encoder(nn.Module):
             layers.append(nn.InstanceNorm2d(content_dim[i+1],affine=True,track_running_stats=True))
             layers.append(nn.LeakyReLU(0.01,inplace=True))
         content.append(nn.Conv2d(content_dim[2],1,kernel_size=3,stride=1,padding=1,bias=False))
-        content.append(nn.InstanceNorm2d(1,affine=True,track_running_stats=True))
+        # content.append(nn.InstanceNorm2d(1,affine=True,track_running_stats=True))
         content.append(nn.Tanh())
         self.encoder_content=nn.Sequential(*content)
 
@@ -48,7 +48,7 @@ class encoder(nn.Module):
         out=self.encoder_conv(x)
         same=self.encoder_style(out)
         diff=self.encoder_content(out)
-        return same,diff*4
+        return same,diff
 
 
 class decoder(nn.Module):
