@@ -1,68 +1,12 @@
 # -*- coding: UTF-8 -*-
 import torch
 import torch.nn as nn
-import model.GAN_module_mnist as GAN_module_mnist
-import model.GAN_module_mnist_style as GAN_module_mnist_style
-import dataset.mnist_color.mnist_color as mnist_color
-import dataset.mnist_color.mnist_style as mnist_style
-import dataset.mnist_color.mnist_edge as mnist_edge
-import torch.utils.data as Data
-import utils.data_provider as data_provider
-import utils.random_noise_producer as random_noise_producer
+
+from utils.common_tools import *
 import os
 import cv2
 import numpy as np
 import click
-
-def weight_init(w):
-    if isinstance(w, nn.Conv2d):
-        nn.init.xavier_normal_(w.weight.data,gain=1)
-    elif isinstance(w, nn.ConvTranspose2d):
-        nn.init.xavier_normal_(w.weight.data,gain=1)
-
-def reconstruction_loss(x1,x2):
-    loss=torch.abs(x1-x2).mean()
-    return loss
-
-def D_real_loss(output,loss_func="lsgan"):
-    if(loss_func=="lsgan"):
-        distance=(output-1.0)*(output-1.0)
-        loss=distance.mean()
-        return loss
-
-    if(loss_func=="wgan"):
-        return (-output).mean()
-
-    if(loss_func =="hinge"):
-        real_loss =torch.functional.F.relu(1.0 - output).mean()
-        return real_loss
-
-def D_fake_loss(output,loss_func="lsgan"):
-    if(loss_func=="lsgan"):
-        distance=output*output
-        loss=distance.mean()
-        return loss
-
-    if(loss_func=="wgan"):
-        return output.mean()
-
-    if(loss_func =="hinge"):
-        real_loss =torch.functional.F.relu(1.0 + output).mean()
-        return real_loss
-
-
-def G_fake_loss(output,loss_func="lsgan"):
-    if(loss_func=="lsgan"):
-        distance=(output-1)*(output-1)
-        loss=distance.mean()
-        return loss
-
-    if(loss_func=="wgan"):
-        return (-output).mean()
-
-    if(loss_func=="hinge"):
-        return (-output).mean()
-
 
 def forward(models,x1,x2,feature_real):
     encoder,decoder,dis_image,dis_feature=models
@@ -70,7 +14,6 @@ def forward(models,x1,x2,feature_real):
     media2,diff2=encoder(x2)
     x1_fake=decoder(media2,diff1)
     x2_fake=decoder(media1,diff2)
-
     dis_x1_real=dis_image(x1)
     dis_x2_real=dis_image(x2)
     dis_x1_fake=dis_image(x1_fake)
@@ -78,7 +21,6 @@ def forward(models,x1,x2,feature_real):
     dis_feature_real=dis_feature(feature_real)
     dis_feature_fake_x1=dis_feature(diff1)
     dis_feature_fake_x2=dis_feature(diff2)
-
     return x1,x2,x1_fake,x2_fake,dis_x1_real,dis_x2_real,dis_x1_fake,dis_x2_fake,feature_real,dis_feature_real,dis_feature_fake_x1,dis_feature_fake_x2
 
 def forward_and_get_loss(models,x1,x2,feature_real,step,train_method):
@@ -95,78 +37,10 @@ def zero_grad_for_all(optimizers):
     for optimizer in optimizers:
         optimizer.zero_grad()
 
-
-
-#生成器使用带动量的SGD，判别器使用Adam
-def generate_optimizers(models,lr=[0.001,0.001,0.001,0.001],weight_decay=0.001,momentum=0.9):
-    encoder,decoder,dis_image,dis_feature=models
-    optimizers=[]
-    for i in range(0,len(models)-4):
-        optimizer=torch.optim.SGD(models[i].parameters(),lr=lr[i],weight_decay=weight_decay,momentum=momentum)
-        optimizers.append(optimizer)
-    for i in range(len(models)-4,len(models)):
-        optimizer=torch.optim.Adam(models[i].parameters(),lr=lr[i],weight_decay=weight_decay,betas=(0.5, 0.999))
-        optimizers.append(optimizer)
-
-
-    # for i in range(2,4):
-    #     optimizer=torch.optim.SGD(models[i].parameters(),lr=lr[i],weight_decay=weight_decay)
-    #     optimizers.append(optimizer)
-    return optimizers
-
-
-def generate_models(model_name):
-    if(model_name=='GAN_mnist'):
-        models=[]
-        encoder=GAN_module_mnist.encoder()
-        models.append(encoder)
-        decoder=GAN_module_mnist.decoder()
-        models.append(decoder)
-        image_dis=GAN_module_mnist.discriminator_for_image()
-        models.append(image_dis)
-        feature_dis=GAN_module_mnist.discriminator_for_difference()
-        models.append(feature_dis)
-        return models
-    if(model_name=='GAN_mnist_style'):
-        models=[]
-        encoder=GAN_module_mnist_style.encoder()
-        models.append(encoder)
-        decoder=GAN_module_mnist_style.decoder()
-        models.append(decoder)
-        image_dis=GAN_module_mnist_style.discriminator_for_image()
-        models.append(image_dis)
-        feature_dis=GAN_module_mnist_style.discriminator_for_difference()
-        models.append(feature_dis)
-        return models
-
-def init_models(models):
+def init_models(models,init_type="default"):
+    init_func=weights_init(init_type)
     for model in models:
-        model.apply(weight_init)
-
-
-def generate_dataset(dataset_name,batch_size=32,train=True):
-    #创建数据集，这个数据集每次调用返回两张图片，一张为某种颜色的手写字，另外一张为另一种颜色的手写字
-    if(dataset_name=='mnist'):
-        if(train):
-            mnist_loader=Data.DataLoader(mnist_color.minst_color(path="dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,shuffle=True,num_workers=0)
-            #创建一个随机噪声当做学习的中间特征的表达形式
-            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
-            return mnist_loader,noise_loader
-        else:
-            mnist_loader=Data.DataLoader(mnist_color.minst_color(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
-            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
-            return mnist_loader,noise_loader
-
-    if(dataset_name=='mnist_style'):
-        if(train):
-            mnist_loader=Data.DataLoader(mnist_style.minst_style(path="dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,shuffle=True,num_workers=0)
-            mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return mnist_loader,mnist_edge_loader
-        else:
-            mnist_loader=Data.DataLoader(mnist_style.minst_style(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,shuffle=False,num_workers=0)
-            mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return mnist_loader,mnist_edge_loader
-
+        model.apply(init_func)
 
 def save_models(models,model_name,dataset_name,save_path="checkpoints"):
     path=save_path
@@ -209,6 +83,16 @@ def report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_
     image_D_loss.cpu().item(),G_image_loss.cpu().item(),G_feature_loss.cpu().item()))
 
 
+def train_eval_switch(models,train=True):
+    if(train):
+        for model in models:
+            model.train()
+    else:
+        for model in models:
+            model.eval()
+
+
+
 
 @click.command()
 @click.option('--batch_size',default=32,type=int, help="the batch size of train")
@@ -216,12 +100,14 @@ def report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_
 @click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style"]),help="the string that  defines the current model use")
 @click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.0001],nargs=4,type=float,help="the learning_rate of the four optimizer")
-@click.option('--reconst_param',default=20.0,type=float,help="the reconstion loss coefficient")
+@click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_d_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_d_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
-@click.option('--train_method',default="hinge",type=click.Choice(["lsgan","wgan","hinge"]),help="the loss type of the train")
-def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_d_loss_param,feature_d_loss_param,model_save_path,train_method):
+@click.option('--train_method',default="lsgan",type=click.Choice(["lsgan","wgan","hinge"]),help="the loss type of the train")
+@click.option('--init_weight_type',default="default",type=click.Choice(["default","gaussian","xavier","kaiming","orthogonal"]),help="the loss type of the train")
+@click.option('--optimizer_type',default="adam",type=click.Choice(["adam","sgd"]),help="the loss type of the train")
+def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_d_loss_param,feature_d_loss_param,model_save_path,train_method,init_weight_type,optimizer_type):
     is_cuda=False
     if(torch.cuda.is_available()):
         is_cuda=True
@@ -230,13 +116,14 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
         print("cuda is unavailable, current is cpu mode")
 
     models=generate_models(model_name)
-    init_models(models)
+    init_models(models,init_weight_type)
+    train_eval_switch(models)
 
     if(is_cuda):
         for i in range(0,len(models)):
             models[i]=models[i].cuda()
 
-    optimizers=generate_optimizers(models,lr=learning_rate)
+    optimizers=generate_optimizers(models,learning_rate,optimizer_type)
     mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=True)
 
     #epoch的次数，这里先写成变量，以后会加入到config文件中
@@ -291,6 +178,8 @@ def test_color(batch_size,dataset_name,model_name,model_save_path,file_save_path
     else:
         print("cuda is unavailable, current is cpu mode")
     models=generate_models(model_name)
+    train_eval_switch(models,False)
+
     if(is_cuda):
         for i in range(0,len(models)):
             models[i]=models[i].cuda()
@@ -347,6 +236,8 @@ def test_edge(batch_size,dataset_name,model_name,model_save_path,file_save_path)
     else:
         print("cuda is unavailable, current is cpu mode")
     models=generate_models(model_name)
+    train_eval_switch(models,False)
+
     if(is_cuda):
         for i in range(0,len(models)):
             models[i]=models[i].cuda()
@@ -368,7 +259,7 @@ def test_edge(batch_size,dataset_name,model_name,model_save_path,file_save_path)
 
         same1,diff1=encoder(x1)
         same2,diff2=encoder(x2)
-        x_new1=decoder(same1,edge)
+        x_new1=decoder(same1,diff1)
         x_new2=decoder(same2,edge)
         x1=x1.permute(0,2,3,1).cpu().numpy()
         x2=x2.permute(0,2,3,1).cpu().numpy()
@@ -383,8 +274,8 @@ def test_edge(batch_size,dataset_name,model_name,model_save_path,file_save_path)
             image=np.zeros((x1.shape[1]*3,x1.shape[2]*2,3))
             image[0:x1.shape[1],0:x1.shape[2],:]=(x1[j,:,:,:]+1)/2
             image[0:x1.shape[1],x1.shape[2]:x1.shape[2]*2,:]=(x2[j,:,:,:]+1)/2
-
-            image[x1.shape[1]:x1.shape[1]*2,0:x1.shape[2],:]=(diff1[j,:,:,:]+1)/2
+            diff_image=(diff1[j,:,:,:]+1)/2
+            image[x1.shape[1]:x1.shape[1]*2,0:x1.shape[2],:]=diff_image
             image[x1.shape[1]:x1.shape[1]*2,x1.shape[2]:x1.shape[2]*2,:]=(edge[j,:,:,:]+1)/2
 
             image[x1.shape[1]*2:x1.shape[1]*3,0:x1.shape[2],:]=(x_new1[j,:,:,:]+1)/2

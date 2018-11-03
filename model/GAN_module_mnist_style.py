@@ -48,8 +48,7 @@ class encoder(nn.Module):
         out=self.encoder_conv(x)
         same=self.encoder_style(out)
         diff=self.encoder_content(out)
-        diff=diff*2-1
-        return same,diff
+        return same,diff*4
 
 
 class decoder(nn.Module):
@@ -98,7 +97,6 @@ class decoder(nn.Module):
         diff=self.decoder_content(diff)
         out=torch.cat((same,diff),1)
         out=self.decoder_conv(out)
-        out=out*2-1
         return out
 
 class discriminator_for_image(nn.Module):
