@@ -145,19 +145,19 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
             #先更新image discriminator
             reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step,train_method)
             image_D_loss.backward(retain_graph=True)
-            image_D_optimizer.module.step()
+            image_D_optimizer.step()
             zero_grad_for_all(optimizers)
 
             #再更新feature discriminator
             feature_D_loss.backward(retain_graph=True)
-            feature_D_optimizer.module.step()
+            feature_D_optimizer.step()
             zero_grad_for_all(optimizers)
 
             #最后更新Generator
             total_loss=reconst_loss*reconst_param+G_image_loss*image_d_loss_param+G_feature_loss*feature_d_loss_param
             total_loss.backward()
-            decoder_optimizer.module.step()
-            encoder_optimizer.module.step()
+            decoder_optimizer.step()
+            encoder_optimizer.step()
             zero_grad_for_all(optimizers)
 
             if(step%100==0):

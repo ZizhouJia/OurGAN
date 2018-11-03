@@ -86,13 +86,13 @@ def generate_optimizers(models,lrs,optimizer_type="sgd",weight_decay=0.001):
     if(optimizer_type=="sgd"):
         for i in range(0,len(models)):
             optimizer=torch.optim.SGD(models[i].parameters(),lr=lrs[i],weight_decay=weight_decay,momentum=0.9)
-            optimizer=nn.DataParallel(optimizer)
+            # optimizer=nn.DataParallel(optimizer)
             optimizers.append(optimizer)
 
     if(optimizer_type=="adam"):
         for i in range(0,len(models)):
             optimizer=torch.optim.Adam(models[i].parameters(),lr=lrs[i],weight_decay=weight_decay,betas=(0.5, 0.999))
-            optimizer=nn.DataParallel(optimizer)
+            # optimizer=nn.DataParallel(optimizer)
             optimizers.append(optimizer)
     return optimizers
 
@@ -148,5 +148,5 @@ def generate_models(model_name):
         feature_dis=GAN_module_mnist_style.discriminator_for_difference()
         models.append(feature_dis)
 
-    parallel(models)
+    # parallel(models)
     return models
