@@ -311,6 +311,7 @@ def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path)
     encoder=models[0]
     decoder=models[1]
 
+
     mnist_loader,edge_loader=generate_dataset(dataset_name,batch_size,train=False)
 
 
@@ -326,13 +327,16 @@ def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path)
         same2,diff2=encoder(x2)
         x_new1=decoder(same1,diff1)
         x_new2=decoder(same2,edge)
+
         x1=x1.permute(0,2,3,1).cpu().numpy()
         x2=x2.permute(0,2,3,1).cpu().numpy()
         x_new1=x_new1.permute(0,2,3,1).cpu().detach().numpy()
         x_new2=x_new2.permute(0,2,3,1).cpu().detach().numpy()
+
         diff1=diff1.permute(0,2,3,1).cpu().detach().numpy()
         diff2=diff2.permute(0,2,3,1).cpu().detach().numpy()
         edge=edge.permute(0,2,3,1).cpu().detach().numpy()
+
 
 
         for j in range(0,100):
@@ -342,13 +346,12 @@ def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path)
             diff_image=(diff1[j,:,:,:]+1)/2
             image[x1.shape[1]:x1.shape[1]*2,0:x1.shape[2],:]=diff_image
             image[x1.shape[1]:x1.shape[1]*2,x1.shape[2]:x1.shape[2]*2,:]=(edge[j,:,:,:]+1)/2
-
             image[x1.shape[1]*2:x1.shape[1]*3,0:x1.shape[2],:]=(x_new1[j,:,:,:]+1)/2
             image[x1.shape[1]*2:x1.shape[1]*3,x1.shape[2]:x1.shape[2]*2,:]=(x_new2[j,:,:,:]+1)/2
             image=image*255
             image=image.astype(np.int32)
             cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
-        break
+break
 
 
 @click.group()

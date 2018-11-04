@@ -6,6 +6,7 @@ import torch
 import torchvision.transforms as transforms
 import os
 import random
+
 import cv2
 
 IMG_EXTENTIONS = [".jpg", ".jpeg", ".bmp", ".png", ".tif"]
@@ -15,7 +16,6 @@ transform_img = transforms.Compose([
                     transforms.Resize(28),
                     transforms.ToTensor(),
                     ])
-
 
 #file is image?
 
@@ -100,6 +100,7 @@ class FaceDatasetFolder(torch.utils.data.Dataset):
             target = self.target_transform(target)
 
         return (img*2-1, img2*2-1) #, target
+
 
 
 
