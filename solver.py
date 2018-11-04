@@ -97,8 +97,8 @@ def train_eval_switch(models,train=True):
 @click.command()
 @click.option('--batch_size',default=32,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
-@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style"]),help="the string that  defines the current model use")
+@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.0001],nargs=4,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_d_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
@@ -136,6 +136,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
         print("begin the epoch : %d"%(i))
         for step,(x1,x2) in enumerate(mnist_loader):
+            #print x1.size()
             noise=noise_loader.next()
             if(is_cuda):
                 x1=x1.cuda()
@@ -166,8 +167,8 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
 @click.command()
 @click.option('--batch_size',default=100,type=int, help="the batch size of the test")
-@click.option('--dataset_name',default="mnist",type=click.Choice(["mnist","mnist_style"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style"]),help="the string that  defines the current model use")
+@click.option('--dataset_name',default="mnist",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
 @click.option('--file_save_path',default="test_output",type=str,help="the model save path")
 def test_color(batch_size,dataset_name,model_name,model_save_path,file_save_path):
@@ -224,8 +225,8 @@ def test_color(batch_size,dataset_name,model_name,model_save_path,file_save_path
 
 @click.command()
 @click.option('--batch_size',default=100,type=int, help="the batch size of the test")
-@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style"]),help="the string that  defines the current model use")
+@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
 @click.option('--file_save_path',default="test_output",type=str,help="the model save path")
 def test_edge(batch_size,dataset_name,model_name,model_save_path,file_save_path):
@@ -285,6 +286,71 @@ def test_edge(batch_size,dataset_name,model_name,model_save_path,file_save_path)
             cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
         break
 
+@click.command()
+@click.option('--batch_size',default=100,type=int, help="the batch size of the test")
+@click.option('--dataset_name',default="face_point",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_face_point",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
+@click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
+@click.option('--file_save_path',default="test_output",type=str,help="the model save path")
+def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path):
+    is_cuda=False
+    if(torch.cuda.is_available()):
+        is_cuda=True
+        print("cuda is available, current is cuda mode")
+    else:
+        print("cuda is unavailable, current is cpu mode")
+    models=generate_models(model_name)
+    train_eval_switch(models,False)
+
+    if(is_cuda):
+        for i in range(0,len(models)):
+            models[i]=models[i].cuda()
+    print("restoring models....")
+    restore_models(models,model_name,dataset_name,model_save_path)
+    print("restore models succeed")
+    encoder=models[0]
+    decoder=models[1]
+
+    mnist_loader,edge_loader=generate_dataset(dataset_name,batch_size,train=False)
+
+
+    for step,(x1,x2) in enumerate(mnist_loader):
+        #print x1.size()
+        edge=edge_loader.next()
+        if(is_cuda):
+            x1=x1.cuda()
+            x2=x2.cuda()
+            edge=edge.cuda()
+
+        same1,diff1=encoder(x1)
+        same2,diff2=encoder(x2)
+        x_new1=decoder(same1,diff1)
+        x_new2=decoder(same2,edge)
+        x1=x1.permute(0,2,3,1).cpu().numpy()
+        x2=x2.permute(0,2,3,1).cpu().numpy()
+        x_new1=x_new1.permute(0,2,3,1).cpu().detach().numpy()
+        x_new2=x_new2.permute(0,2,3,1).cpu().detach().numpy()
+        diff1=diff1.permute(0,2,3,1).cpu().detach().numpy()
+        diff2=diff2.permute(0,2,3,1).cpu().detach().numpy()
+        edge=edge.permute(0,2,3,1).cpu().detach().numpy()
+
+
+        for j in range(0,100):
+            image=np.zeros((x1.shape[1]*3,x1.shape[2]*2,3))
+            image[0:x1.shape[1],0:x1.shape[2],:]=(x1[j,:,:,:]+1)/2
+            image[0:x1.shape[1],x1.shape[2]:x1.shape[2]*2,:]=(x2[j,:,:,:]+1)/2
+            diff_image=(diff1[j,:,:,:]+1)/2
+            image[x1.shape[1]:x1.shape[1]*2,0:x1.shape[2],:]=diff_image
+            image[x1.shape[1]:x1.shape[1]*2,x1.shape[2]:x1.shape[2]*2,:]=(edge[j,:,:,:]+1)/2
+
+            image[x1.shape[1]*2:x1.shape[1]*3,0:x1.shape[2],:]=(x_new1[j,:,:,:]+1)/2
+            image[x1.shape[1]*2:x1.shape[1]*3,x1.shape[2]:x1.shape[2]*2,:]=(x_new2[j,:,:,:]+1)/2
+            image=image*255
+            image=image.astype(np.int32)
+            cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
+        break
+
+
 @click.group()
 def main():
     pass
@@ -293,4 +359,5 @@ if __name__ == '__main__':
     main.add_command(train)
     main.add_command(test_color)
     main.add_command(test_edge)
+    main.add_command(test_face)
     main()
