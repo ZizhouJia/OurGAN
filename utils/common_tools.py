@@ -120,17 +120,19 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_loader=Data.DataLoader(mnist_style.minst_style(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,shuffle=False,num_workers=0)
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
-        if(dataset_name=='face_point'):
-            if(train):
-                imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/train/")
-                imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-                mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-                return imageloader, mnist_edge_loader
-            else:
-                imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/test/")
-                imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
-                mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-                return imageloader, mnist_edge_loader
+            
+    if(dataset_name=='face_point'):
+        if(train):
+            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/train/")
+            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+            return imageloader, mnist_edge_loader
+        else:
+            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/test/")
+            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+            return imageloader, mnist_edge_loader
+
 
 def parallel(models):
     for i in range(0,len(models)):
