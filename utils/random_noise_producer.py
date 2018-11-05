@@ -7,8 +7,9 @@ import torchvision.transforms as transforms
 
 class random_noise(torch.utils.data.Dataset):
     def __init__(self,transform=transforms.ToTensor()):
-        self.train_x=np.random.randn(100000,1,1,10).astype(np.float32)
+        self.train_x=np.random.randn(100000,1,1,32).astype(np.float32)
         self.transform=transform
+
 
     def __getitem__(self,index):
 
@@ -20,3 +21,5 @@ class random_noise(torch.utils.data.Dataset):
 
 def get_noise_numpy(batch_size=1):
     return np.random.randn(batch_size,10,1,1)
+
+# def get_certain_noise():
