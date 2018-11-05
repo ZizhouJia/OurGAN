@@ -131,7 +131,7 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_loader=Data.DataLoader(mnist_style.minst_style(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,shuffle=False,num_workers=0)
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
-<<<<<<< HEAD
+
     if(dataset_name=='face_point'):
         print("loading dataset...")
         if(train):
@@ -148,19 +148,7 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/")
             feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
             return feature_loader
-=======
 
-    if(dataset_name=='face_point'):
-        if(train):
-            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/train/")
-            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return imageloader, mnist_edge_loader
-        else:
-            imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/test/")
-            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return imageloader, mnist_edge_loader
 
     if(dataset_name=='mnist_type'):
         if(train):
@@ -172,7 +160,7 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_loader=Data.DataLoader(mnist_type.minst_type(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
             noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
             return mnist_loader,noise_loader
->>>>>>> upstream/master
+
 
 
 def parallel(models):
