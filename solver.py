@@ -8,12 +8,14 @@ import cv2
 import numpy as np
 import click
 
-def forward(models,x1,x2,feature_real):
+def forward_and_get_loss(models,x1,x2,feature_real,step,train_method,interpolation=False):
     encoder,decoder,dis_image,dis_feature=models
     media1,diff1=encoder(x1)
     media2,diff2=encoder(x2)
     x1_fake=decoder(media2,diff1)
     x2_fake=decoder(media1,diff2)
+    x1_rec=decoder(media1,diff1)
+    x2_rec=decoder(media2,diff2)
     dis_x1_real=dis_image(x1)
     dis_x2_real=dis_image(x2)
     dis_x1_fake=dis_image(x1_fake)
@@ -21,16 +23,18 @@ def forward(models,x1,x2,feature_real):
     dis_feature_real=dis_feature(feature_real)
     dis_feature_fake_x1=dis_feature(diff1)
     dis_feature_fake_x2=dis_feature(diff2)
-    return x1,x2,x1_fake,x2_fake,dis_x1_real,dis_x2_real,dis_x1_fake,dis_x2_fake,feature_real,dis_feature_real,dis_feature_fake_x1,dis_feature_fake_x2
-
-def forward_and_get_loss(models,x1,x2,feature_real,step,train_method):
-    x1,x2,x1_fake,x2_fake,dis_x1_real,dis_x2_real,dis_x1_fake,dis_x2_fake,feature_real,dis_feature_real,dis_feature_fake_x1,dis_feature_fake_x2=forward(models,x1,x2,feature_real)
-    reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
+    reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)+reconstruction_loss(x1,x1_rec)+reconstruction_loss(x2,x2_rec)
     feature_D_loss=D_real_loss(dis_feature_real,train_method)+(D_fake_loss(dis_feature_fake_x1,train_method)+D_fake_loss(dis_feature_fake_x2,train_method))/2
     image_D_loss=D_real_loss(dis_x1_real,train_method)+D_real_loss(dis_x2_real,train_method)+D_fake_loss(dis_x1_fake,train_method)+D_fake_loss(dis_x2_fake,train_method)
-
     G_image_loss=G_fake_loss(dis_x1_fake,train_method)+G_fake_loss(dis_x2_fake,train_method)
     G_feature_loss=G_fake_loss(dis_feature_fake_x1,train_method)+G_fake_loss(dis_feature_fake_x2,train_method)
+    if(interpolation):
+        inter=torch.rand(x1.size()[0],1,1,1).cuda()
+        inter=diff1*inter+diff2*(1-inter)
+        x_inter_fake=decoder(media1,inter)
+        dis_x_inter_fake=dis_image(inter)
+        G_image_loss+=G_fake_loss(dis_x_inter_fake)
+
     return reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss
 
 def zero_grad_for_all(optimizers):
@@ -96,8 +100,8 @@ def train_eval_switch(models,train=True):
 
 @click.command()
 @click.option('--batch_size',default=32,type=int, help="the batch size of train")
-@click.option('--epoch',default=10000,type=int, help="the total epoch of train")
-@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
+@click.option('--epoch',default=100,type=int, help="the total epoch of train")
+@click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style","face_point","mnist_type"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.0001],nargs=4,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
@@ -125,7 +129,9 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     optimizers=generate_optimizers(models,learning_rate,optimizer_type)
     mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=True)
-
+    inter=False
+    if(dataset_name=="mnist_style"):
+        inter=True
     #epoch的次数，这里先写成变量，以后会加入到config文件中
     encoder_optimizer,decoder_optimizer,image_D_optimizer,feature_D_optimizer=optimizers
     for i in range(0,epoch):
@@ -144,7 +150,9 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 noise=noise.cuda()
             #开始训练过程
             #先更新image discriminator
-            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step,train_method)
+
+
+            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step,train_method,inter)
             image_D_loss.backward(retain_graph=True)
             image_D_optimizer.step()
             zero_grad_for_all(optimizers)
@@ -193,17 +201,20 @@ def test_color(batch_size,dataset_name,model_name,model_save_path,file_save_path
     mnist_loader=generate_dataset(dataset_name,batch_size,train=False)
 
 
-    for step,(x1,x2,noise) in enumerate(mnist_loader):
-        #noise=noise_loader.next()
+
+    for step,(x1,x2) in enumerate(mnist_loader):
+        noise1=noise_loader.next()
+        noise2=noise_loader.next()
         if(is_cuda):
             x1=x1.cuda()
             x2=x2.cuda()
-            noise=noise.cuda()
+            noise1=noise1.cuda()
+            noise2=noise2.cuda()
 
         same1,diff1=encoder(x1)
         same2,diff2=encoder(x2)
-        x_new1=decoder(same1,noise)
-        x_new2=decoder(same2,noise)
+        x_new1=decoder(same1,diff2)
+        x_new2=decoder(same2,diff1)
         x1=x1.permute(0,2,3,1).cpu().numpy()
         x2=x2.permute(0,2,3,1).cpu().numpy()
         x_new1=x_new1.permute(0,2,3,1).cpu().detach().numpy()
@@ -356,6 +367,58 @@ def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path)
             cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
         break
 
+@click.command()
+@click.option('--batch_size',default=100,type=int, help="the batch size of the test")
+@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist","mnist_style","face_point","mnist_type"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
+@click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
+@click.option('--file_save_path',default="test_output",type=str,help="the model save path")
+def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save_path):
+    is_cuda=False
+    if(torch.cuda.is_available()):
+        is_cuda=True
+        print("cuda is available, current is cuda mode")
+    else:
+        print("cuda is unavailable, current is cpu mode")
+    models=generate_models(model_name)
+    train_eval_switch(models,False)
+
+    if(is_cuda):
+        for i in range(0,len(models)):
+            models[i]=models[i].cuda()
+    print("restoring models....")
+    restore_models(models,model_name,dataset_name,model_save_path)
+    print("restore models succeed")
+    encoder=models[0]
+    decoder=models[1]
+
+    mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=False)
+
+
+    for step,(x1,x2) in enumerate(mnist_loader):
+        if(is_cuda):
+            x1=x1.cuda()
+            x2=x2.cuda()
+
+        same1,diff1=encoder(x1)
+        same2,diff2=encoder(x2)
+        vector=diff2-diff1
+        images=[]
+        images.append(x1.permute(0,2,3,1).cpu().detach().numpy())
+        for i in range(0,11):
+            x_new=decoder(same1,diff1+vector*i/10)
+            images.append(x_new.permute(0,2,3,1).cpu().detach().numpy())
+        images.append(x2.permute(0,2,3,1).cpu().detach().numpy())
+
+        for j in range(0,100):
+            image=np.zeros((x1.shape[2]*1,x1.shape[3]*13,3))
+            for i in range(0,13):
+                image[0:x1.shape[2],x1.shape[3]*i:x1.shape[3]*(i+1),:]=(images[i][j,:,:,:]+1)/2
+            image=image*255
+            image=image.astype(np.int32)
+            cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
+        break
+
 
 @click.command()
 @click.option('--batch_size',default=2,type=int, help="the batch size of train")
@@ -439,4 +502,5 @@ if __name__ == '__main__':
     main.add_command(test_edge)
     main.add_command(test_face)
     main.add_command(train_face)
+    main.add_command(test_mnist_step)
     main()
