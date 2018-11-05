@@ -6,14 +6,14 @@ import torch
 import torchvision.transforms as transforms
 import os
 import random
-
+import key_point_tools.key_point as key_point
 import cv2
 
 IMG_EXTENTIONS = [".jpg", ".jpeg", ".bmp", ".png", ".tif"]
 
 transform_img = transforms.Compose([
                     transforms.CenterCrop(480),
-                    transforms.Resize(28),
+                    transforms.Resize(64),
                     transforms.ToTensor(),
                     ])
 
@@ -50,6 +50,8 @@ def make_dataset(dir,class_to_idx,extentions):
                 if has_file_allowed_extension(fname, extentions):
                     path = os.path.join(root, fname)
                     img = pil_loader(path)
+                    
+                    #print(path)
                     #print img
                     item = (img, class_to_idx[target])
                     images.append(item)
