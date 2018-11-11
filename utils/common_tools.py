@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import model.GAN_module_mnist as GAN_module_mnist
 import model.GAN_module_mnist_style as GAN_module_mnist_style
-import model.GAN_module_face_point as GAN_module_face_point
+# import model.GAN_module_face_point as GAN_module_face_point
 import dataset.mnist_color.mnist_color as mnist_color
 import dataset.mnist_color.mnist_style as mnist_style
 import dataset.mnist_color.mnist_type as mnist_type
@@ -15,8 +15,8 @@ import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
 
-import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
-import dataset.face_point.face_point_dataset as face_point_dataset
+# import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
+# import dataset.face_point.face_point_dataset as face_point_dataset
 import math
 
 
@@ -38,11 +38,11 @@ def weights_init(init_type='default'):
     return init_func
 
 def verify_loss(output,label):
-    e=1e-8
-    loss=-(label)*torch.log(output+e)-(1-label)*torch.log(1-output+e)
+    # e=1e-8
+    # loss=-(label)*torch.log(output+e)-(1-label)*torch.log(1-output+e)
     # loss=loss.mean()
-    # loss=label*output-(1-label)*output/(torch.sum(1-label)+1)
-    return loss.mean()
+    loss=F.cross_entropy(output,label)
+    return loss
 
 
 def feature_same_loss(x1,x2):
@@ -150,22 +150,22 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
 
-    if(dataset_name=='face_point'):
-        print("loading dataset...")
-        if(train):
-            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/train/")
-            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/")
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-
-            #mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return  feature_loader
-        else:
-            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/test/")
-            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/")
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            return feature_loader
+    # if(dataset_name=='face_point'):
+    #     print("loading dataset...")
+    #     if(train):
+    #         #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/train/")
+    #         #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/")
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #
+    #         #mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+    #         return  feature_loader
+    #     else:
+    #         #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/test/")
+    #         #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/")
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #         return feature_loader
 
 
     if(dataset_name=='mnist_type'):
