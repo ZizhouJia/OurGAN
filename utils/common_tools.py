@@ -1,20 +1,23 @@
 # -*- coding: UTF-8 -*-
 import torch
+import math
 import torch.nn as nn
 import model.GAN_module_mnist as GAN_module_mnist
 import model.GAN_module_mnist_style as GAN_module_mnist_style
+import model.GAN_module_face_point as GAN_module_face_point
 import dataset.mnist_color.mnist_color as mnist_color
 import dataset.mnist_color.mnist_style as mnist_style
+import dataset.mnist_color.mnist_type as mnist_type
 import dataset.mnist_color.mnist_edge as mnist_edge
 import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
-<<<<<<< HEAD
+
 import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
+import dataset.reid.reid_dataset as reid_dataset
+import dataset.face_point.face_point_dataset as face_point_dataset
 import math
-=======
-import dataset.face_point.FaceImageFolder as FaceImageFolder
->>>>>>> c641d38c47447134c9e89c47ec200f1b2bfef453
+
 
 
 #weight initialization
@@ -31,9 +34,19 @@ def weights_init(init_type='default'):
                 nn.init.orthogonal_(m.weight.data, gain=math.sqrt(2))
             elif init_type == 'default':
                 pass
-
     return init_func
 
+def feature_same_loss(x1,x2):
+    eps=1e-8
+    size=x1.size()
+    length=size[1]*size[2]*size[3]
+    x1=x1.view(-1,length)
+    x2=x2.view(-1,length)
+    total=torch.sum(x1*x2,1)
+    x1_len=torch.sqrt(torch.sum(x1*x1,1))
+    x2_len=torch.sqrt(torch.sum(x2*x2,1))
+    cos=(total/(x1_len*x2_len+eps)).mean()
+    return -cos
 
 # loss function
 def reconstruction_loss(x1,x2):
@@ -47,9 +60,7 @@ def D_real_loss(output,loss_func="lsgan"):
         return loss
 
     if(loss_func=="wgan"):
-        squ=(output-1)
-        squ=squ*squ
-        return (-output).mean()+squ.mean()
+        return (-output).mean()
 
     if(loss_func =="hinge"):
         real_loss =torch.functional.F.relu(1.0 - output).mean()
@@ -62,9 +73,7 @@ def D_fake_loss(output,loss_func="lsgan"):
         return loss
 
     if(loss_func=="wgan"):
-        squ=(output)
-        squ=squ*squ
-        return output.mean()+squ.mean()
+        return output.mean()
 
     if(loss_func =="hinge"):
         real_loss =torch.functional.F.relu(1.0 + output).mean()
@@ -78,9 +87,7 @@ def G_fake_loss(output,loss_func="lsgan"):
         return loss
 
     if(loss_func=="wgan"):
-        squ=(output-1)
-        squ=squ*squ
-        return (-output).mean()+squ.mean()
+        return (-output).mean()
 
     if(loss_func=="hinge"):
         return (-output).mean()
@@ -125,36 +132,57 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
             mnist_loader=Data.DataLoader(mnist_style.minst_style(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,shuffle=False,num_workers=0)
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
-        if(dataset_name=='face_point'):
-            if(train):
-                imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/train/")
-                imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-                mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-                return imageloader, mnist_edge_loader
-            else:
-                imagedatasets = FaceImageFolder.FaceImageFolder(root="dataset/face_point/data/test/")
-                imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
-                mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-                return imageloader, mnist_edge_loader
+
+    if(dataset_name=='face_point'):
+        print("loading dataset...")
+        if(train):
+            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/train/")
+            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
+            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+
+            #mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
+            return  feature_loader
+        else:
+            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/test/")
+            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
+            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
+            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            return feature_loader
+
+
+    if(dataset_name=='mnist_type'):
+        if(train):
+            mnist_loader=Data.DataLoader(mnist_type.minst_type(path="dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,shuffle=True,num_workers=0)
+            #创建一个随机噪声当做学习的中间特征的表达形式
+            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
+            return mnist_loader,noise_loader
+        else:
+            mnist_loader=Data.DataLoader(mnist_type.minst_type(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
+            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
+            return mnist_loader,noise_loader
+
+    if(dataset_name=='DukeMTMC-reID'):
+        print("loading dataset...")
+        if(train):
+            feature_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_train/",load_data=False,mode="train")
+            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            return  feature_loader
+        else:
+
+            test_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_test/",load_data=False,mode="test")
+            test_loader = Data.DataLoader(test_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            query_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/query/",load_data=False,mode="query")
+            query_loader = Data.DataLoader(query_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            return test_loader,query_loader
+
+
 
 def parallel(models):
     for i in range(0,len(models)):
         models[i]=nn.DataParallel(models[i])
     # parallel(models)
     return models
-
-    if(dataset_name=='face_point'):
-        if(train):
-            imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/train/")
-            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return imageloader, mnist_edge_loader
-        else:
-            imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/test/")
-            imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
-            return imageloader, mnist_edge_loader
-
 
 #models
 def generate_models(model_name):
@@ -183,12 +211,12 @@ def generate_models(model_name):
 
     if(model_name=='GAN_face_point'):
         models=[]
-        encoder=GAN_module_mnist_style.encoder()
+        encoder=GAN_module_face_point.encoder()
         models.append(encoder)
-        decoder=GAN_module_mnist_style.decoder()
+        decoder=GAN_module_face_point.decoder()
         models.append(decoder)
-        image_dis=GAN_module_mnist_style.discriminator_for_image()
+        image_dis=GAN_module_face_point.discriminator_for_image()
         models.append(image_dis)
-        feature_dis=GAN_module_mnist_style.discriminator_for_difference()
+        feature_dis=GAN_module_face_point.discriminator_for_difference()
         models.append(feature_dis)
-        return models
+    return models
