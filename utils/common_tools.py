@@ -2,12 +2,14 @@
 import torch
 import math
 import torch.nn as nn
+import torch.nn.functional as F
 import model.GAN_module_mnist as GAN_module_mnist
 import model.GAN_module_mnist_style as GAN_module_mnist_style
 import dataset.mnist_color.mnist_color as mnist_color
 import dataset.mnist_color.mnist_style as mnist_style
 import dataset.mnist_color.mnist_type as mnist_type
 import dataset.mnist_color.mnist_edge as mnist_edge
+import dataset.mnist_color.mnist as mnist
 import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
@@ -30,17 +32,33 @@ def weights_init(init_type='default'):
                 pass
     return init_func
 
+def verify_loss(output,label):
+    e=1e-8
+    loss=-(label)*torch.log(output+e)-(1-label)*torch.log(1-output+e)
+    # loss=loss.mean()
+    # loss=label*output-(1-label)*output/(torch.sum(1-label)+1)
+    return loss.mean()
+
+
 def feature_same_loss(x1,x2):
-    eps=1e-8
-    size=x1.size()
-    length=size[1]*size[2]*size[3]
-    x1=x1.view(-1,length)
-    x2=x2.view(-1,length)
-    total=torch.sum(x1*x2,1)
-    x1_len=torch.sqrt(torch.sum(x1*x1,1))
-    x2_len=torch.sqrt(torch.sum(x2*x2,1))
-    cos=(total/(x1_len*x2_len+eps)).mean()
-    return -cos
+    distance=F.normalize(x1)-F.normalize(x2)
+    return torch.sum((distance*distance).view(distance.size()[0],-1),1).mean()
+
+def D_classify_loss(output,target):
+
+    # loss=target*torch.log(output)+(1-target)*torch.log(1-output)
+    output=torch.exp(output)
+    total=torch.sum(output,1).view(output.size()[0],1)
+    output=torch.log(output/total)
+    output=torch.sum(-target*output,1)
+    return output.mean()
+
+def G_classify_loss(output):
+    output=torch.exp(output)
+    total=torch.sum(output,1).view(output.size()[0],1)
+    output=torch.log(output/total)
+    output=torch.mean(-output,1)
+    return output.mean()
 
 # loss function
 def reconstruction_loss(x1,x2):
@@ -104,7 +122,7 @@ def generate_optimizers(models,lrs,optimizer_type="sgd",weight_decay=0.001):
     return optimizers
 
 #dataset
-def generate_dataset(dataset_name,batch_size=32,train=True):
+def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=False):
     #创建数据集，这个数据集每次调用返回两张图片，一张为某种颜色的手写字，另外一张为另一种颜色的手写字
     if(dataset_name=='mnist'):
         if(train):
@@ -142,13 +160,11 @@ def generate_dataset(dataset_name,batch_size=32,train=True):
     if(dataset_name=='mnist_type'):
         if(train):
             mnist_loader=Data.DataLoader(mnist_type.minst_type(path="dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,shuffle=True,num_workers=0)
-            #创建一个随机噪声当做学习的中间特征的表达形式
-            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
-            return mnist_loader,noise_loader
+            return mnist_loader
         else:
-            mnist_loader=Data.DataLoader(mnist_type.minst_type(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
-            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
-            return mnist_loader,noise_loader
+            query_loader=Data.DataLoader(mnist.minst(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
+            test_loader=Data.DataLoader(mnist.minst(path="./dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,num_workers=0)
+            return query_loader,test_loader
 
 
 def parallel(models):
@@ -162,13 +178,16 @@ def generate_models(model_name):
     if(model_name=='GAN_mnist'):
         models=[]
         encoder=GAN_module_mnist.encoder()
-        models.append(encoder)
+        models.append(encoder.cuda())
         decoder=GAN_module_mnist.decoder()
-        models.append(decoder)
+        models.append(decoder.cuda())
         image_dis=GAN_module_mnist.discriminator_for_image()
-        models.append(image_dis)
+        models.append(image_dis.cuda())
         feature_dis=GAN_module_mnist.discriminator_for_difference()
-        models.append(feature_dis)
+        models.append(feature_dis.cuda())
+        verifier=GAN_module_mnist.verifier()
+        models.append(verifier.cuda())
+
 
     if(model_name=='GAN_mnist_style'):
         models=[]
