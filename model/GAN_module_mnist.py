@@ -21,6 +21,7 @@ class encoder(nn.Module):
         layers.append(nn.BatchNorm2d(64))
         self.encoder_conv=nn.Sequential(*layers)
 
+
     def forward(self,x):
         out=self.encoder_conv(x)
         out_diff=out[:,-32:,:,:]
@@ -32,6 +33,7 @@ class encoder(nn.Module):
 class decoder(nn.Module):
     def __init__(self):
         super(decoder,self).__init__()
+
         layers=[]
         layers.append(nn.ConvTranspose2d(64,64,kernel_size=7,stride=1,padding=0,bias=False))
         layers.append(nn.BatchNorm2d(64))
@@ -75,6 +77,7 @@ class discriminator_for_image(nn.Module):
 class discriminator_for_difference(nn.Module):
     def __init__(self):
         super(discriminator_for_difference,self).__init__()
+
         layers=[]
         layers.append(nn.Conv2d(32,32,kernel_size=1,stride=1,padding=0))
         layers.append(nn.LeakyReLU(0.01,inplace=True))

@@ -16,6 +16,7 @@ import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
 
 import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
+import dataset.reid.reid_dataset as reid_dataset
 import dataset.face_point.face_point_dataset as face_point_dataset
 import math
 
@@ -36,6 +37,7 @@ def weights_init(init_type='default'):
             elif init_type == 'default':
                 pass
     return init_func
+
 
 def verify_loss(output,label):
     e=1e-8
@@ -153,17 +155,12 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
     if(dataset_name=='face_point'):
         print("loading dataset...")
         if(train):
-            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/train/")
-            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/")
+            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
             feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
 
-            #mnist_edge_loader = data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return  feature_loader
         else:
-            #imagedatasets = FaceDatasetFolder.FaceDatasetFolder(root="dataset/face_point/data/test/")
-            #imageloader = Data.DataLoader(imagedatasets, batch_size=batch_size, shuffle=True, num_workers=0)
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/")
+            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
             feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
             return feature_loader
 
@@ -171,11 +168,27 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
     if(dataset_name=='mnist_type'):
         if(train):
             mnist_loader=Data.DataLoader(mnist_type.minst_type(path="dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,shuffle=True,num_workers=0)
+            #创建一个随机噪声当做学习的中间特征的表达形式
+            noise_loader=data_provider.data_provider(random_noise_producer.random_noise(),batch_size=batch_size)
             return mnist_loader
         else:
             query_loader=Data.DataLoader(mnist.minst(path="./dataset/mnist_color/data/raw/",train=False),batch_size=batch_size,num_workers=0)
             test_loader=Data.DataLoader(mnist.minst(path="./dataset/mnist_color/data/raw/",train=True),batch_size=batch_size,num_workers=0)
             return query_loader,test_loader
+
+    if(dataset_name=='DukeMTMC-reID'):
+        print("loading dataset...")
+        if(train):
+            feature_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_train/",load_data=False,mode="train")
+            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            return  feature_loader
+        else:
+            test_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_test/",load_data=False,mode="test")
+            test_loader = Data.DataLoader(test_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            query_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/query/",load_data=False,mode="query")
+            query_loader = Data.DataLoader(query_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+            return test_loader,query_loader
+
 
 
 
