@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import click
 
+
 def forward_and_get_loss(models,x1,x2,feature_real,step,train_method,classes=False,interpolation=0,same_constrain=False):
     encoder,decoder,dis_image,dis_feature=models
     media1,diff1=encoder(x1)
@@ -171,7 +172,9 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 noise=noise.cuda()
             #开始训练过程
             #先更新image discriminator
-            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step,train_method)
+
+
+            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss=forward_and_get_loss(models,x1,x2,noise,step,train_method,inter)
             image_D_loss.backward(retain_graph=True)
             image_D_optimizer.step()
             zero_grad_for_all(optimizers)
@@ -485,6 +488,7 @@ def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save
     encoder=models[0]
     decoder=models[1]
 
+
     mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,False,test_cross_class)
 
 
@@ -511,6 +515,7 @@ def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save
             image=image.astype(np.int32)
             cv2.imwrite(os.path.join(file_save_path,"test_"+str(step*100+j)+".jpg"),image)
         break
+
 
 @click.command()
 @click.option('--batch_size',default=100,type=int, help="the batch size of the test")
@@ -568,6 +573,8 @@ def test_classify(batch_size,dataset_name,model_name,model_save_path,file_save_p
                 if(min_index==c_number):
                     total+=1
     print("the total acc is:%.4f"%(float(total)/10000))
+
+
 
 
 @click.command()
