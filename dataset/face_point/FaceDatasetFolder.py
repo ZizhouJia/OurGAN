@@ -1,12 +1,24 @@
 import numpy as np
 from PIL import Image
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torch
 import torchvision.transforms as transforms
 import os
 import random
-import FaceImageFolder
+import key_point_tools.key_point as key_point
+import cv2
+
+IMG_EXTENTIONS = [".jpg", ".jpeg", ".bmp", ".png", ".tif"]
+
+transform_img = transforms.Compose([
+                    transforms.CenterCrop(480),
+                    transforms.Resize(64),
+                    transforms.ToTensor(),
+                    ])
 
 #file is image?
+
 def has_file_allowed_extension(filename,extensions):
     filename_lower = filename.lower()
     return any(filename_lower.endswith(ext) for ext in extensions)
@@ -17,6 +29,12 @@ def find_classes(dir):
     classes.sort()
     class_to_idx = {classes[i]:i for i in xrange(len(classes))}
     return classes, class_to_idx
+
+def pil_loader(path):
+    with open(path, 'rb') as f:
+        img=Image.open(f)
+        #print img.size
+        return img.convert('RGB')
 
 #get image info
 def make_dataset(dir,class_to_idx,extentions):
@@ -31,7 +49,11 @@ def make_dataset(dir,class_to_idx,extentions):
             for fname in sorted(fnames):
                 if has_file_allowed_extension(fname, extentions):
                     path = os.path.join(root, fname)
-                    item = (path, class_to_idx[target])
+                    img = pil_loader(path)
+                    
+                    #print(path)
+                    #print img
+                    item = (img, class_to_idx[target])
                     images.append(item)
     return images
 
@@ -47,7 +69,7 @@ def get_class_items(samples, classes):
 
 
 class FaceDatasetFolder(torch.utils.data.Dataset):
-    def __init__(self, root, loader, extensions, transform=None, target_transform=None):
+    def __init__(self, root, loader=pil_loader, extensions=IMG_EXTENTIONS, transform=transform_img, target_transform=None):
         classes, class_to_idx = find_classes(root)
         samples = make_dataset(root, class_to_idx, extensions)
         classitem = get_class_items(samples, classes)
@@ -66,21 +88,21 @@ class FaceDatasetFolder(torch.utils.data.Dataset):
 
 
     def __getitem__(self, index):
-        path, target = self.samples[index]
+        img, target = self.samples[index]
         coindex = random.randint(0, 37)
-        (path2, index2) = self.classitem[target][coindex]
+        (img2, index2) = self.classitem[target][coindex]
         while index2 == index:
             coindex = random.randint(0, 37)
-            (path2, index2) = self.classitem[target][coindex]
+            (img2, index2) = self.classitem[target][coindex]
 
-        sample = self.loader(path)
-        sample2 = self.loader(path2)
         if self.transform is not None:
-            sample = self.transforms(sample)
-            sample2 = self.transforms(sample2)
+            img = self.transform(img)
+            img2 = self.transform(img2)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        return (sample, sample2) #, target
+
+        return (img*2-1, img2*2-1) #, target
+
 
 
 
