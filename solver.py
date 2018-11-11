@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 import torch
 import torch.nn as nn
+import torch.utils.data as Data
+import dataset.mnist_color.mnist as mnist
 
 from utils.common_tools import *
 import os
@@ -8,7 +10,8 @@ import cv2
 import numpy as np
 import click
 
-def forward_and_get_loss(models,x1,x2,feature_real,step,train_method,interpolation=False):
+
+def forward_and_get_loss(models,x1,x2,feature_real,step,train_method,classes=False,interpolation=0,same_constrain=False):
     encoder,decoder,dis_image,dis_feature=models
     media1,diff1=encoder(x1)
     media2,diff2=encoder(x2)
@@ -20,22 +23,41 @@ def forward_and_get_loss(models,x1,x2,feature_real,step,train_method,interpolati
     dis_x2_real=dis_image(x2)
     dis_x1_fake=dis_image(x1_fake)
     dis_x2_fake=dis_image(x2_fake)
-    dis_feature_real=dis_feature(feature_real)
+
     dis_feature_fake_x1=dis_feature(diff1)
     dis_feature_fake_x2=dis_feature(diff2)
     reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)+reconstruction_loss(x1,x1_rec)+reconstruction_loss(x2,x2_rec)
-    feature_D_loss=D_real_loss(dis_feature_real,train_method)+(D_fake_loss(dis_feature_fake_x1,train_method)+D_fake_loss(dis_feature_fake_x2,train_method))/2
-    image_D_loss=D_real_loss(dis_x1_real,train_method)+D_real_loss(dis_x2_real,train_method)+D_fake_loss(dis_x1_fake,train_method)+D_fake_loss(dis_x2_fake,train_method)
+    D_image_loss=(D_real_loss(dis_x1_real,train_method)+D_real_loss(dis_x2_real,train_method))/2
+    D_image_fake_loss=D_fake_loss(dis_x1_fake,train_method)+D_fake_loss(dis_x2_fake,train_method)
     G_image_loss=G_fake_loss(dis_x1_fake,train_method)+G_fake_loss(dis_x2_fake,train_method)
-    G_feature_loss=G_fake_loss(dis_feature_fake_x1,train_method)+G_fake_loss(dis_feature_fake_x2,train_method)
-    if(interpolation):
-        inter=torch.rand(x1.size()[0],1,1,1).cuda()
-        inter=diff1*inter+diff2*(1-inter)
-        x_inter_fake=decoder(media1,inter)
-        dis_x_inter_fake=dis_image(inter)
-        G_image_loss+=G_fake_loss(dis_x_inter_fake)
+    D_feature_loss=0
+    G_feature_loss=0
+    if(not classes):
+        dis_feature_real=dis_feature(feature_real)
+        D_feature_loss=D_real_loss(dis_feature_real,train_method)+(D_fake_loss(dis_feature_fake_x1,train_method)+D_fake_loss(dis_feature_fake_x2,train_method))/2
+        G_feature_loss=(G_fake_loss(dis_feature_fake_x1,train_method)+G_fake_loss(dis_feature_fake_x2,train_method))/2
+    else:
+        D_feature_loss=(D_classify_loss(dis_feature_fake_x1,feature_real)+D_classify_loss(dis_feature_fake_x2,feature_real))/2
+        G_feature_loss=(G_classify_loss(dis_feature_fake_x1,feature_real)+G_classify_loss(dis_feature_fake_x2,feature_real))/2
 
-    return reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss
+    if(interpolation>0):
+        for i in range(0,interpolation):
+            inter=torch.rand(x1.size()[0],1,1,1).cuda()
+            inter=diff1*inter+diff2*(1-inter)
+            x_inter_fake=decoder(media1,inter)
+            dis_x_inter_fake=dis_image(x_inter_fake)
+            G_image_loss+=G_fake_loss(dis_x_inter_fake)
+            D_image_fake_loss+=D_fake_loss(dis_x_inter_fake)
+    G_image_loss=G_image_loss/(interpolation+2)
+    D_image_loss+=(D_image_fake_loss)/(interpolation+2)
+
+    if(not same_constrain):
+        return reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss
+    else:
+        same_constrain=feature_same_loss(media1,media2)
+
+        return reconst_loss,D_feature_loss,D_image_loss,G_image_loss,G_feature_loss,same_constrain
+
 
 def zero_grad_for_all(optimizers):
     for optimizer in optimizers:
@@ -86,6 +108,10 @@ def report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_
     print("In step %d  rstl:%.4f dfl:%.4f dil:%.4f gil:%.4f gfl:%.4f"%(step,reconst_loss.cpu().item(),feature_D_loss.cpu().item(),
     image_D_loss.cpu().item(),G_image_loss.cpu().item(),G_feature_loss.cpu().item()))
 
+def report_loss2(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,same_constrain,step):
+    print("In step %d  rstl:%.4f dfl:%.4f dil:%.4f gil:%.4f gfl:%.4f scl:%.4f"%(step,reconst_loss.cpu().item(),feature_D_loss.cpu().item(),
+    image_D_loss.cpu().item(),G_image_loss.cpu().item(),G_feature_loss.cpu().item(),same_constrain.cpu().item()))
+
 
 def train_eval_switch(models,train=True):
     if(train):
@@ -103,7 +129,7 @@ def train_eval_switch(models,train=True):
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="mnist_style",type=click.Choice(["mnist","mnist_style","face_point","mnist_type"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_mnist_style",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.0001],nargs=4,type=float,help="the learning_rate of the four optimizer")
+@click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.01],nargs=4,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_d_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_d_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
@@ -129,10 +155,6 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     optimizers=generate_optimizers(models,learning_rate,optimizer_type)
     mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=True)
-    inter=False
-    if(dataset_name=="mnist_style"):
-        inter=True
-    #epoch的次数，这里先写成变量，以后会加入到config文件中
     encoder_optimizer,decoder_optimizer,image_D_optimizer,feature_D_optimizer=optimizers
     for i in range(0,epoch):
         if(i%1==0):
@@ -171,6 +193,79 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
             if(step%100==0):
                 report_loss(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,step)
+
+
+@click.command()
+@click.option('--batch_size',default=32,type=int, help="the batch size of train")
+@click.option('--epoch',default=100,type=int, help="the total epoch of train")
+@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist","mnist_style","face_point","mnist_type"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
+@click.option('--learning_rate',default=[0.001,0.001,0.0001,0.001,0.001],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
+@click.option('--image_d_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
+@click.option('--feature_d_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
+@click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
+@click.option('--train_method',default="lsgan",type=click.Choice(["lsgan","wgan","hinge"]),help="the loss type of the train")
+@click.option('--init_weight_type',default="xavier",type=click.Choice(["default","gaussian","xavier","kaiming","orthogonal"]),help="the loss type of the train")
+@click.option('--optimizer_type',default="adam",type=click.Choice(["adam","sgd"]),help="the loss type of the train")
+@click.option('--interplot',default=0,type=int,help="the interplot")
+@click.option('--same_constrain_param',default=1,type=float,help="the same constrain")
+def train_type(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_d_loss_param,feature_d_loss_param,model_save_path,train_method,init_weight_type,optimizer_type,interplot,same_constrain_param):
+    is_cuda=False
+    if(torch.cuda.is_available()):
+        is_cuda=True
+        print("cuda is available, current is cuda mode")
+    else:
+        print("cuda is unavailable, current is cpu mode")
+
+    models=generate_models(model_name)
+    init_models(models,init_weight_type)
+    train_eval_switch(models)
+
+    if(is_cuda):
+        for i in range(0,len(models)):
+            models[i]=models[i].cuda()
+
+    optimizers=generate_optimizers(models,learning_rate,optimizer_type)
+    mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=True)
+    encoder_optimizer,decoder_optimizer,image_D_optimizer,feature_D_optimizer=optimizers
+    for i in range(0,epoch):
+        if(i%1==0):
+            print("saving model....")
+            save_models(models,model_name,dataset_name,model_save_path)
+            print("save model succeed")
+
+        print("begin the epoch : %d"%(i))
+        for step,(x1,x2,clas) in enumerate(mnist_loader):
+            if(is_cuda):
+                x1=x1.cuda()
+                x2=x2.cuda()
+                clas=clas.cuda()
+            #开始训练过程
+            #先更新image discriminator
+            reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,same_constrain=forward_and_get_loss(models,x1,x2,clas,step,train_method,True,interplot,True)
+            image_D_loss.backward(retain_graph=True)
+            image_D_optimizer.step()
+            zero_grad_for_all(optimizers)
+
+            #再更新feature discriminator
+            if(step%20>=0 and step%10<10):
+                feature_D_loss.backward(retain_graph=True)
+                feature_D_optimizer.step()
+                zero_grad_for_all(optimizers)
+
+            #最后更新Generator
+            if(step%20>=10 and step%10<20):
+                total_loss=reconst_loss*reconst_param+G_image_loss*image_d_loss_param+same_constrain*same_constrain_param
+                total_loss+=G_feature_loss*feature_d_loss_param
+                total_loss.backward()
+                decoder_optimizer.step()
+                encoder_optimizer.step()
+                zero_grad_for_all(optimizers)
+
+
+            if(step%100==0):
+                report_loss2(reconst_loss,feature_D_loss,image_D_loss,G_image_loss,G_feature_loss,same_constrain,step)
 
 
 @click.command()
@@ -373,7 +468,8 @@ def test_face(batch_size,dataset_name,model_name,model_save_path,file_save_path)
 @click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
 @click.option('--file_save_path',default="test_output",type=str,help="the model save path")
-def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save_path):
+@click.option('--test_cross_class',default=False,type=bool,help="the model save path")
+def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save_path,test_cross_class):
     is_cuda=False
     if(torch.cuda.is_available()):
         is_cuda=True
@@ -392,10 +488,11 @@ def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save
     encoder=models[0]
     decoder=models[1]
 
-    mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,train=False)
+
+    mnist_loader,noise_loader=generate_dataset(dataset_name,batch_size,False,test_cross_class)
 
 
-    for step,(x1,x2) in enumerate(mnist_loader):
+    for step,(x1,x2,cls) in enumerate(mnist_loader):
         if(is_cuda):
             x1=x1.cuda()
             x2=x2.cuda()
@@ -421,12 +518,72 @@ def test_mnist_step(batch_size,dataset_name,model_name,model_save_path,file_save
 
 
 @click.command()
-@click.option('--batch_size',default=8,type=int, help="the batch size of train")
+@click.option('--batch_size',default=100,type=int, help="the batch size of the test")
+@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist","mnist_style","face_point","mnist_type"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
+@click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
+@click.option('--file_save_path',default="test_output",type=str,help="the model save path")
+def test_classify(batch_size,dataset_name,model_name,model_save_path,file_save_path):
+    is_cuda=False
+    if(torch.cuda.is_available()):
+        is_cuda=True
+        print("cuda is available, current is cuda mode")
+    else:
+        print("cuda is unavailable, current is cpu mode")
+    models=generate_models(model_name)
+    train_eval_switch(models,False)
+
+    if(is_cuda):
+        for i in range(0,len(models)):
+            models[i]=models[i].cuda()
+    print("restoring models....")
+    restore_models(models,model_name,dataset_name,model_save_path)
+    print("restore models succeed")
+    encoder=models[0]
+    decoder=models[1]
+    class_center=np.zeros((10,32))
+    for c_number in range(0,10):
+        dataset=mnist.minst(path="dataset/mnist_color/data/raw/",class_number=c_number,train=True)
+        data_count=dataset.__len__()
+        mnist_loader=Data.DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=0)
+        for step, x in enumerate(mnist_loader):
+            if(is_cuda):
+                x=x.cuda()
+            same,diff=encoder(x)
+            class_center[c_number]+=(torch.sum(same.view(same.size()[0],-1),0)).detach().cpu().numpy()
+        class_center[c_number]=class_center[c_number]/data_count
+    total=0
+    for c_number in range(0,10):
+        dataset=mnist.minst(path="dataset/mnist_color/data/raw/",class_number=c_number,train=False)
+        data_count=dataset.__len__()
+        mnist_loader=Data.DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=0)
+        for step, x in enumerate(mnist_loader):
+            if(is_cuda):
+                x=x.cuda()
+            same,diff=encoder(x)
+            same=same.view(same.size()[0],-1).detach().cpu().numpy()
+            for i in range(0,len(same)):
+                min_index=0
+                distance=100.0
+                for j in range(0,len(class_center)):
+                    new_distance=np.mean(np.abs(class_center[j]-same[i]))
+                    if(new_distance<distance):
+                        min_index=j
+                        distance=new_distance
+                if(min_index==c_number):
+                    total+=1
+    print("the total acc is:%.4f"%(float(total)/10000))
+
+
+
+
+@click.command()
+@click.option('--batch_size',default=2,type=int, help="the batch size of train")
 @click.option('--epoch',default=1000,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="face_point",type=click.Choice(["mnist","mnist_style","face_point"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_face_point",type=click.Choice(["GAN_mnist","GAN_mnist_style","GAN_face_point"]),help="the string that  defines the current model use")
 @click.option('--learning_rate',default=[0.0001,0.0001,0.0001,0.0001],nargs=4,type=float,help="the learning_rate of the four optimizer")
-@click.option('--reconst_param',default=100.0,type=float,help="the reconstion loss coefficient")
+@click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_d_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_d_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
@@ -498,9 +655,11 @@ def main():
 
 if __name__ == '__main__':
     main.add_command(train)
+    main.add_command(train_type)
     main.add_command(test_color)
     main.add_command(test_edge)
     main.add_command(test_face)
     main.add_command(train_face)
     main.add_command(test_mnist_step)
+    main.add_command(test_classify)
     main()

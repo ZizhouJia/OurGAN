@@ -37,8 +37,8 @@ class encoder(nn.Module):
         self.encoder_tanh=nn.Tanh()
 
 
-
     def forward(self,x):
+
 
         x1=self.encoder_down1(x)
         #print x1.size()
@@ -49,6 +49,7 @@ class encoder(nn.Module):
         x4=self.encoder_resblocks(x3)
         #print x4.size()
         out=x4
+
 
         media=[]
         media.append(x1)
@@ -72,8 +73,7 @@ class encoder(nn.Module):
         #print("diff3")
         #print(diff.size())
         diff=self.encoder_tanh(diff)
-        #print("diff4")
-        #print(diff.size())
+
         return media,diff
 
 
@@ -84,22 +84,23 @@ class decoder(nn.Module):
         dim=[64,64,32,16]
         diff_dim=[32,16,3]
 
+
         if(not torch.cuda.is_available()):
             dim=[5,5,3,3]
             content_dim=[3,3,5]
 
         same=[]
         same.append(convtr_single(dim[0],dim[1]))
+
         same.append(nn.LeakyReLU(0.01))
         self.decoder_same=nn.Sequential(*same)
 
         diff=[]
+
         diff.append(conv_single(1,dim[3]))
         diff.append(conv_single(dim[3],dim[2]))
         diff.append(conv_single(dim[2],dim[1]))
 
-        #diff.append(nn.LeakyReLU(0.01))
-        #content.append(nn.InstanceNorm2d(1,affine=True,track_running_stats=True))
         diff.append(nn.Tanh())
         self.decoder_diff=nn.Sequential(*diff)
 
@@ -113,6 +114,7 @@ class decoder(nn.Module):
 
         self.decoder_tanh=nn.Tanh()
 
+
     def forward(self,media,diff):
         x1=media[0]
         x2=media[1]
@@ -120,7 +122,7 @@ class decoder(nn.Module):
         x4=media[3]
         same=media[4]
         same=self.decoder_same(same)
-        #print(diff.size())
+
         diff=self.decoder_diff(diff)
         out=torch.cat((same,diff),1)
 
@@ -132,8 +134,6 @@ class decoder(nn.Module):
         out=self.decoder_down3(out,x1)
         out=self.decoder_tanh(out)
 
-        #out=self.decoder_down1(out)
-        #out=self.decoder_tanh(out)
 
         return out
 
@@ -211,6 +211,7 @@ class convtr_single(nn.Module):
         #layers.append(nn.InstanceNorm2d(outputdim, affine=True, track_running_stats=True))
         layers.append(nn.LeakyReLU(0.01))
 
+
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -223,7 +224,7 @@ class conv_single(nn.Module):
         layers = []
         layers.append(nn.Conv2d(inputdim, outputdim, kernel_size=kernel_size, stride=stride, padding=padding, bias=False))
         layers.append(nn.BatchNorm2d(outputdim))
-        #layers.append(nn.InstanceNorm2d(outputdim, affine=True, track_running_stats=True))
+
         layers.append(nn.LeakyReLU(0.01))
 
         self.model = nn.Sequential(*layers)
@@ -236,8 +237,9 @@ class down(nn.Module):
     def __init__(self,inputdim,outputdim,kernel_size=4,stride=2,padding=1):
         super(down,self).__init__()
         layers = []
-        #layers.append(nn.MaxPool2d(2))
+
         layers.append(conv_single(inputdim,outputdim,kernel_size,stride,padding))
+
         self.model = nn.Sequential(*layers)
 
     def forward(self,x):
@@ -254,7 +256,6 @@ class up(nn.Module):
 
 
     def forward(self,x1,x2):
-
         x=torch.cat((x2,x1),1)
         x=self.up(x)
         if self.outputdim!=3:

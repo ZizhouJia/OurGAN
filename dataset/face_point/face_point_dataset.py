@@ -76,7 +76,7 @@ def make_dataset(dir,class_to_idx,extentions,marker):
                     #print img
                     imgp = pil_loader(path)
                     item = (imgp,feature, class_to_idx[target])
-                    #print(item)
+
                     images.append(item)
                     #sys.exit(0)
     return images
@@ -89,9 +89,6 @@ def get_class_items(samples, classes):
     for i, (img, feature,id) in enumerate(samples):
         item = (img,feature ,i)
         classitem[id].append(item)
-    #for i in range(0, classlen):
-        #print(i)
-        #print(len(classitem[i]))
     return classitem
 
 
