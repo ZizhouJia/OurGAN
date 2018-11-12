@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import model.GAN_module_mnist as GAN_module_mnist
 import model.GAN_module_mnist_style as GAN_module_mnist_style
-import model.GAN_module_face_point as GAN_module_face_point
+#import model.GAN_module_face_point as GAN_module_face_point
 import model.GAN_module_reid as GAN_module_reid
 import dataset.mnist_color.mnist_color as mnist_color
 import dataset.mnist_color.mnist_style as mnist_style
@@ -16,9 +16,9 @@ import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
 
-import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
+# import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
 import dataset.reid.reid_dataset as reid_dataset
-import dataset.face_point.face_point_dataset as face_point_dataset
+# import dataset.face_point.face_point_dataset as face_point_dataset
 
 import math
 
@@ -42,7 +42,6 @@ def weights_init(init_type='default'):
 
 
 def verify_loss(output,label):
-    e=1e-8
     # loss=-(label)*torch.log(output+e)-(1-label)*torch.log(1-output+e)
     loss=F.cross_entropy(output,label)
     # loss=loss.mean()
@@ -158,17 +157,18 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
 
-    if(dataset_name=='face_point'):
-        print("loading dataset...")
-        if(train):
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
 
-            return  feature_loader
-        else:
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            return feature_loader
+    # if(dataset_name=='face_point'):
+    #     print("loading dataset...")
+    #     if(train):
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #
+    #         return  feature_loader
+    #     else:
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #         return feature_loader
 
 
     if(dataset_name=='mnist_type'):
@@ -232,16 +232,16 @@ def generate_models(model_name):
         models.append(feature_dis)
         return models
 
-    if(model_name=='GAN_face_point'):
-        models=[]
-        encoder=GAN_module_face_point.encoder()
-        models.append(encoder)
-        decoder=GAN_module_face_point.decoder()
-        models.append(decoder)
-        image_dis=GAN_module_face_point.discriminator_for_image()
-        models.append(image_dis)
-        feature_dis=GAN_module_face_point.discriminator_for_difference()
-        models.append(feature_dis)
+    # if(model_name=='GAN_face_point'):
+    #     models=[]
+    #     encoder=GAN_module_face_point.encoder()
+    #     models.append(encoder)
+    #     decoder=GAN_module_face_point.decoder()
+    #     models.append(decoder)
+    #     image_dis=GAN_module_face_point.discriminator_for_image()
+    #     models.append(image_dis)
+    #     feature_dis=GAN_module_face_point.discriminator_for_difference()
+    #     models.append(feature_dis)
 
     if(model_name=='GAN_Duke'):
         models=[]

@@ -8,24 +8,27 @@ class encoder(nn.Module):
         super(encoder,self).__init__()
 
         layers=[]
-        layers.append(nn.Conv2d(1,16,kernel_size=4,stride=1,padding=2,bias=False))
+        layers.append(nn.Conv2d(1,16,kernel_size=3,stride=1,padding=1,bias=False))
         layers.append(nn.BatchNorm2d(16))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
-        layers.append(nn.Conv2d(16,32,kernel_size=4,stride=2,padding=1,bias=False))
+        layers.append(nn.Conv2d(16,32,kernel_size=3,stride=2,padding=1,bias=False))
         layers.append(nn.BatchNorm2d(32))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
-        layers.append(nn.Conv2d(32,64,kernel_size=4,stride=2,padding=1,bias=False))
+        layers.append(nn.Conv2d(32,32,kernel_size=3,stride=2,padding=1,bias=False))
+        layers.append(nn.BatchNorm2d(32))
+        layers.append(nn.LeakyReLU(0.01,inplace=True))
+        layers.append(nn.Conv2d(32,64,kernel_size=3,stride=2,padding=1,bias=False))
         layers.append(nn.BatchNorm2d(64))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
-        layers.append(nn.Conv2d(64,64,kernel_size=7,stride=1,padding=0,bias=True))
-        layers.append(nn.BatchNorm2d(64))
+        layers.append(nn.Conv2d(64,128,kernel_size=4,stride=1,padding=0,bias=True))
+        # layers.append(nn.BatchNorm2d(64))
         self.encoder_conv=nn.Sequential(*layers)
 
 
     def forward(self,x):
         out=self.encoder_conv(x)
-        out_diff=out[:,-32:,:,:]
-        out_conv=out[:,:-32,:,:]
+        out_diff=out[:,-64:,:,:]
+        out_conv=out[:,:-64,:,:]
 
         return out_conv,out_diff
 
@@ -35,7 +38,8 @@ class decoder(nn.Module):
         super(decoder,self).__init__()
 
         layers=[]
-        layers.append(nn.ConvTranspose2d(64,64,kernel_size=7,stride=1,padding=0,bias=False))
+        layers.append(nn.BatchNorm2d(128))
+        layers.append(nn.ConvTranspose2d(128,64,kernel_size=7,stride=1,padding=0,bias=False))
         layers.append(nn.BatchNorm2d(64))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.ConvTranspose2d(64,32,kernel_size=4,stride=2,padding=1,bias=False))
@@ -79,7 +83,7 @@ class discriminator_for_difference(nn.Module):
         super(discriminator_for_difference,self).__init__()
 
         layers=[]
-        layers.append(nn.Conv2d(32,32,kernel_size=1,stride=1,padding=0))
+        layers.append(nn.Conv2d(64,32,kernel_size=1,stride=1,padding=0))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.Conv2d(32,32,kernel_size=1,stride=1,padding=0))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
@@ -94,16 +98,17 @@ class discriminator_for_difference(nn.Module):
 class verifier(nn.Module):
     def __init__(self):
         super(verifier,self).__init__()
-        self.bn=nn.BatchNorm2d(32)
-        self.linear=nn.Conv2d(32,1,kernel_size=1,stride=1,padding=0)
-        self.sig=nn.Sigmoid()
+        self.bn=nn.BatchNorm2d(64)
+        self.linear=nn.Conv2d(64,2,kernel_size=1,stride=1,padding=0)
+        self.linear.weight.data.normal_(0, 0.001)
 
     def forward(self,feature1,feature2):
-        feature1=feature1.view(-1,32,1,1)
-        feature2=feature2.view(-1,32,1,1)
+        feature1=feature1.view(-1,64,1,1)
+        feature2=feature2.view(-1,64,1,1)
         feature=feature1-feature2
         feature=feature.pow(2)
         feature=self.bn(feature)
         feature=self.linear(feature)
-        score=self.sig(feature)
-        return score.view(-1)
+        # score=self.sig(feature)
+        score=feature
+        return score.view(-1,2)

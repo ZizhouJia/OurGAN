@@ -145,9 +145,9 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 @click.command()
 @click.option('--batch_size',default=8,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
-@click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.001,0.01,0.0001,0.001,0.001],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist_type"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist"]),help="the string that  defines the current model use")
+@click.option('--learning_rate',default=[0.001,0.001,0.001,0.001,0.01],nargs=5,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_g_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_g_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
@@ -240,14 +240,12 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 #calculate the feature generator loss
                 feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
                 #calculate the verification loss
-
                 v_loss=verify_loss(v_pred,label)
                 #calcuate the total loss of the multitask
                 total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
-                if(i>=10):
-                    total_loss+=verify_loss_param*v_loss
+                total_loss+=verify_loss_param*v_loss
 
-                if(step%10==0):
+                if(step%100==0):
                     report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
 
                 if(tune!=0):
