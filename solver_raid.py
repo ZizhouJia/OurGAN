@@ -9,6 +9,7 @@ import click
 
 from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
+import dataset.reid.reid_dataset as reid_dataset
 
 
 def init_models(models,init_type="default"):
@@ -141,11 +142,8 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 
 
 
-
-
-
 @click.command()
-@click.option('--batch_size',default=32,type=int, help="the batch size of train")
+@click.option('--batch_size',default=8,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist_type"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist"]),help="the string that  defines the current model use")
@@ -157,8 +155,8 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 @click.option('--train_method',default="lsgan",type=click.Choice(["lsgan","wgan","hinge"]),help="the loss type of the train")
 @click.option('--init_weight_type',default="xavier",type=click.Choice(["default","gaussian","xavier","kaiming","orthogonal"]),help="the loss type of the train")
 @click.option('--optimizer_type',default="adam",type=click.Choice(["adam","sgd"]),help="the loss type of the train")
-@click.option('--verify_loss_param',default=10,type=float,help="the same constrain")
-@click.option('--steps_per_tune',default=10,type=float,help="steps per tunes to swith the main work")
+@click.option('--verify_loss_param',default=1,type=float,help="the same constrain")
+@click.option('--steps_per_tune',default=100,type=float,help="steps per tunes to swith the main work")
 def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_g_loss_param,feature_g_loss_param,model_save_path,train_method,init_weight_type,optimizer_type,verify_loss_param,steps_per_tune):
 
     models=generate_models(model_name)
@@ -189,11 +187,11 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
             x2=x2.cuda()
             clas=clas.cuda()
 
-            if(step%steps_per_tune):
-                tune=random.randint(0,1)
-
+            if(step%steps_per_tune==0):
+                tune=1-tune
+            #tune=1
             #just optimize the feature discriminator
-            if(tune==0 and step%100!=0):
+            if(tune==0 and step%10!=0):
                 #encoder image
                 s1,d1=encoder(x1)
                 s2,d2=encoder(x2)
@@ -206,6 +204,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 feature_d_optimizer.step()
                 zero_grad_for_all(optimizers)
             else:
+                #print("222")
                 #encoder image
                 s1,d1=encoder(x1)
                 s2,d2=encoder(x2)
@@ -261,15 +260,16 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                     decoder_optimizer.step()
                     encoder_optimizer.step()
                     zero_grad_for_all(optimizers)
+                    #print(feature1)
 
 
 
 
 
 @click.command()
-@click.option('--batch_size',default=100,type=int, help="the batch size of the test")
-@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist_type"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist"]),help="the string that  defines the current model use")
+@click.option('--batch_size',default=5,type=int, help="the batch size of the test")
+@click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
 @click.option('--file_save_path',default="test_output",type=str,help="the model save path")
 def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):

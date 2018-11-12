@@ -12,7 +12,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-from reid.utils.data import transforms
+import transforms
 
 try:
     import cPickle as pickle
@@ -64,7 +64,7 @@ def get_class_items(samples, classes):
     classitem = [[] for i in range(classlen)]
     classidx_onehot=[]
     for i in range(classlen):
-        onehot=np.zeros((classlen), dtype=np.int)
+        onehot=np.zeros((classlen), dtype=np.float32)
         onehot[i]=1
         classidx_onehot.append(onehot)
     for i, (img, idx) in enumerate(samples):
@@ -75,6 +75,7 @@ def get_class_items(samples, classes):
 
 class reid_dataset(torch.utils.data.Dataset):
     def __init__(self, root, loader=pil_loader,  transform=transform_img,load_data=False,mode="train"):
+        self.mode=mode
 
         if load_data == True:
             if mode=="train":
@@ -102,7 +103,7 @@ class reid_dataset(torch.utils.data.Dataset):
 
         if load_data == False:
             if mode=="train":
-               loadfile=open('processdata/triandata.pkl','wb')
+               loadfile=open('processdata/traindata.pkl','wb')
             elif mode=="test":
                loadfile=open('processdata/testdata.pkl','wb')
             elif mode=="query":
@@ -132,10 +133,14 @@ class reid_dataset(torch.utils.data.Dataset):
         if self.transform is not None:
             img = self.transform(img)
             img2 = self.transform(img2)
-        classonehot=self.classidx_onehot[classidx]
+        classonehot=self.classidx_onehot[classidx].astype(np.float32)
+        #print(classonehot.dtype)
         return (img*2-1, img2*2-1,classonehot)
 
 
 
     def __len__(self):
-        return len(self.samples)
+        l=len(self.samples)
+        if(self.mode=="test" or self.mode=="query"):
+            l=l/20
+        return l

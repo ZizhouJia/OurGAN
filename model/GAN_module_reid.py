@@ -11,15 +11,16 @@ import math
 def weight_init_normal(m):
     classname=m.__class__.__name__
     if classname.find('Conv')!=-1:
-        init.normal(m.weight.data,0.0,0.02)
+        init.normal_(m.weight.data,0.0,0.02)
     elif classname.find('Linear')!=-1:
-        init.normal(m.weight.data,0.0,0.02)
+        init.normal_(m.weight.data,0.0,0.02)
     elif classname.find('BatchNorm2d')!=-1:
-        init.normal(m.weight.data,1.0,0.02)
-        init.constant(m.bias.data,0.0)
+        init.normal_(m.weight.data,1.0,0.02)
+        init.constant_(m.bias.data,0.0)
 
-def init_weights(net):
-    net.apply(weight_init_normal)
+def init_weights(nets):
+    for net in nets:
+        net.apply(weight_init_normal)
 
 class encoder(nn.Module):
     def __init__(self):
@@ -28,26 +29,35 @@ class encoder(nn.Module):
         self.encoder=create("resnet50", cut_at_pooling=True)
 
     def forward(self,x):
+        #print(x.size())
         out=self.encoder(x)
-        same=out[:,-1024:,:,:]
-        diff=out[:,:-1024,:,:]
+        #print(out.size())
+        same=out[:,-1024:]#,:,:]
+        diff=out[:,:-1024]#,:,:]
         return same,diff
 
 
 class decoder(nn.Module):
-    def __init__(self,norm_layer=nn.BatchNorm2d,connect_layers=0,dropout=0.2,output_nc=3,use_bias=False):
+    def __init__(self,norm_layer=nn.BatchNorm2d,connect_layers=0,dropout=0.0,output_nc=3,use_bias=False):
         super(decoder,self).__init__()
         ngf=64
         self.dropout=dropout
         self.use_bias=use_bias
+        self.norm_layer=norm_layer
+        self.connect_layers=connect_layers
+        self.mean=torch.Tensor([0.485,0.456,0.406]).cuda()
+        self.mean=self.mean.view(1,3,1,1)
+        self.std=torch.Tensor([0.229,0.224,0.225]).cuda()
+        self.std=self.std.view(1,3,1,1)
         input_channel = [[8, 8, 4, 2, 1],
                         [16, 8, 4, 2, 1],
                         [16, 16, 4, 2, 1],
                         [16, 16, 8, 2, 1],
                         [16, 16, 8, 4, 1],
                         [16, 16, 8, 4, 2]]
+        self.bn=nn.BatchNorm2d(2048)
         de_avg = [nn.ReLU(True),
-                    nn.ConvTranspose2d(1024+1024+256, ngf * 8,
+                    nn.ConvTranspose2d(1024+1024, ngf * 8,
                         kernel_size=(8,4), bias=self.use_bias),
                     norm_layer(ngf * 8),
                     nn.Dropout(dropout)]
@@ -66,7 +76,7 @@ class decoder(nn.Module):
                     nn.ConvTranspose2d(ngf * input_channel[connect_layers][4],output_nc,
                         kernel_size=4, stride=2,
                         padding=1, bias=self.use_bias),
-                    nn.Tanh()]
+                    nn.Sigmoid()]
         self.de_conv1 = nn.Sequential(*de_conv1)
         init_weights(self.de_avg)
         init_weights(self.de_conv5)
@@ -92,9 +102,10 @@ class decoder(nn.Module):
             return model(fake_feature), cnlayers
 
     def forward(self,same,diff):
-        noise=torch.randn(same.size(0),256)
-        out=torch.cat((same,diff,noise),1)
-
+        # noise=torch.randn(same.size(0),256)
+        out=torch.cat((same,diff),1)
+        out=out.view(-1,out.size(1),1,1)
+        out=self.bn(out)
         fake_feature = self.de_avg(out)
 
         cnlayers = self.connect_layers
@@ -105,6 +116,7 @@ class decoder(nn.Module):
         fake_feature_1, cnlayers = self.decode(self.de_conv1, fake_feature_2, cnlayers)
 
         fake_imgs = fake_feature_1
+        fake_imgs=(fake_imgs-self.mean)/self.std
         return fake_imgs
 
 class discriminator_for_image(nn.Module):
@@ -124,7 +136,7 @@ class discriminator_for_image(nn.Module):
         layers.append(bn)
         layers.append(nn.LeakyReLU(0.01))
         layers.append(nn.Linear(1024,1))
-        self.fclayers=layers
+        self.fclayers=nn.Sequential(*layers)
         init_weights(self.fclayers)
         self.sigmoid=nn.Sigmoid()
 
@@ -140,36 +152,40 @@ class discriminator_for_difference(nn.Module):
     def __init__(self):
         super(discriminator_for_difference,self).__init__()
         layers=[]
-        layers.append(nn.BatchNorm1d(num_features=2048))
-        layers.append(nn.LeakyReLU(0.01))
-        layers.append(nn.Linear(2048,1024))
-        layers.append(nn.BatchNorm1d(num_features=1024))
+        layers.append(nn.Linear(1024,1024))
+        bn=nn.BatchNorm1d(num_features=1024)
+        bn.weight.data.fill_(1)
+        bn.bias.data.zero_()
+        layers.append(bn)
         layers.append(nn.LeakyReLU(0.01))
         layers.append(nn.Linear(1024,702))
-        self.fclayers=layers
-        init_weights(self.fclayers)
-        self.softmax=F.softmax()
+        self.fclayers=nn.Sequential(*layers)
+        #init_weights(self.fclayers)
+        #self.softmax=nn.Softmax()
 
     def forward(self,x):
         x=self.fclayers(x)
-        x=x.view(x.size(0),-1)
-        return self.softmax(x)
+        return x#self.softmax(x)
 
 
 class verification_classifier(nn.Module):
-    def __init__(self,num_features=1024,num_classes=1):
+    def __init__(self):
         super(verification_classifier,self).__init__()
+        num_features=1024
+        num_classes=2
         self.bn=nn.BatchNorm1d(num_features)
         self.bn.weight.data.fill_(1)
         self.bn.bias.data.zero_()
         self.classifier = nn.Linear(num_features, num_classes)
         self.classifier.weight.data.normal_(0, 0.001)
         self.classifier.bias.data.zero_()
+        #self.sigmoid=nn.Sigmoid()
 
     def forward(self,x1,x2):
         x=x1-x2
-        x=x.pow()
+        x=x.pow(2)
         x=self.bn(x)
         x=x.view(x.size(0),-1)
         x=self.classifier(x)
+        #x=self.sigmoid(x)
         return x
