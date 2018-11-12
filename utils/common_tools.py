@@ -16,8 +16,8 @@ import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
 
 # import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
-# import dataset.reid.reid_dataset as reid_dataset
-import dataset.face_point.face_point_dataset as face_point_dataset
+import dataset.reid.reid_dataset as reid_dataset
+# import dataset.face_point.face_point_dataset as face_point_dataset
 
 import math
 
