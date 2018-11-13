@@ -9,7 +9,6 @@ import click
 
 from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
-import dataset.reid.reid_dataset as reid_dataset
 
 
 def init_models(models,init_type="default"):
@@ -93,7 +92,7 @@ def extract_feature(encoder,data_loader):
     return features_array.view(features_array.size()[0],-1),label_array.cpu().numpy()
 
 
-def calculate_score(verifier,features1,label1,features2,label2):
+def calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2):
     scores=np.zeros(features1.size()[0])
     sample_number=np.zeros(features1.size()[0])
     total_correct=0
@@ -112,12 +111,13 @@ def calculate_score(verifier,features1,label1,features2,label2):
         labels=label2
         labels=labels[arg]
         labels=labels[0:10]
-        if(labels[0]==current_label):
+        #print("test:"+labels[0]+":"+labelname2[labels[0]]+"query:"+current_label+":"+labelname1[current_label])
+        if(labelname2[labels[0]]==labelname1[current_label]):
             total_correct+=1
         current_find=0
         total_score=0
         for i in range(0,10):
-            if(current_label==labels[i]):
+            if(labelname1[current_label]==labelname2[labels[i]]):
                 current_find+=1
                 total_score+=current_find/(i+1)
         avg_score=0
@@ -133,10 +133,10 @@ def calculate_score(verifier,features1,label1,features2,label2):
     top1_acc=float(total_correct)/features1.size()[0]
     return top1_acc,mAP
 
-def test_data(encoder,verifier,data_loader1,data_loader2):
+def test_data(encoder,verifier,data_loader1,labelname1,data_loader2,labelname2):
     features1,label1=extract_feature(encoder,data_loader1)
     features2,label2=extract_feature(encoder,data_loader2)
-    top1_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
+    top1_acc,mAP=calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2)
     return top1_acc,mAP
 
 
@@ -145,9 +145,9 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 @click.command()
 @click.option('--batch_size',default=8,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
-@click.option('--dataset_name',default="mnist_type",type=click.Choice(["mnist_type"]),help="the string that defines the current dataset use")
-@click.option('--model_name',default="GAN_mnist",type=click.Choice(["GAN_mnist"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.001,0.001,0.001,0.001,0.01],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
+@click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
+@click.option('--learning_rate',default=[0.001,0.01,0.0001,0.001,0.001],nargs=5,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_g_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_g_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
@@ -223,10 +223,10 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 id=torch.argmax(clas,1)
                 half_size=id.size()[0]/2
                 label=(id[:half_size]==id[half_size:]).long()
-                # label2=(id==id).long()
-                feature1=torch.cat((s1[:half_size],s2[:half_size]),0)
-                feature2=torch.cat((s1[half_size:],s2[half_size:]),0)
-                label=torch.cat((label,label),0)
+                label2=(id==id).long()
+                feature1=torch.cat((s1[:half_size],s2[:half_size],s1[:int(batch_size/3)]),0)
+                feature2=torch.cat((s1[half_size:],s2[half_size:],s2[:int(batch_size/3)]),0)
+                label=torch.cat((label,label,label2[:int(batch_size/3)]),0)
                 #calculate the verify result
                 v_pred=verifier(feature1,feature2)
                 #calculate the real image and fake image l1 loss
@@ -240,12 +240,14 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 #calculate the feature generator loss
                 feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
                 #calculate the verification loss
+
                 v_loss=verify_loss(v_pred,label)
                 #calcuate the total loss of the multitask
                 total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
+
                 total_loss+=verify_loss_param*v_loss
 
-                if(step%100==0):
+                if(step%10==0):
                     report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
 
                 if(tune!=0):
@@ -283,8 +285,10 @@ def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):
     encoder=models[0]
     verifer=models[4]
 
-    query_loader,test_loader=generate_dataset(dataset_name,batch_size,train=False)
-    top1_acc,mAP=test_data(encoder,verifer,query_loader,test_loader)
+    query_loader,labelname_query,test_loader,labelname_test=generate_dataset(dataset_name,batch_size,train=False)
+    #print(labelname_test)
+    #print(labelname_query)
+    top1_acc,mAP=test_data(encoder,verifer,query_loader,labelname_query,test_loader,labelname_test)
     print("the top1 acc is: %.4f mAP: %.4f"%(top1_acc,mAP))
 
 

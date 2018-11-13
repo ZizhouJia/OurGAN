@@ -65,7 +65,7 @@ def get_class_items(samples, classes):
     classidx_onehot=[]
     for i in range(classlen):
         onehot=np.zeros((classlen), dtype=np.float32)
-        onehot[i]=1
+        onehot[i]=1.0
         classidx_onehot.append(onehot)
     for i, (img, idx) in enumerate(samples):
         item = (img ,i)
@@ -116,12 +116,13 @@ class reid_dataset(torch.utils.data.Dataset):
 
 
     def __getitem__(self, index):
+        index=random.randint(0, self.__len__()-1)
         img,classidx = self.samples[index]
-
+        #print(classidx)
         if self.mode!="train":
             if self.transform is not None:
                 img = self.transform(img)
-            return (img*2-1,classidx)
+            return (img,classidx)
 
 
         coindex = random.randint(0, len(self.classitem[classidx])-1)
@@ -135,12 +136,14 @@ class reid_dataset(torch.utils.data.Dataset):
             img2 = self.transform(img2)
         classonehot=self.classidx_onehot[classidx].astype(np.float32)
         #print(classonehot.dtype)
-        return (img*2-1, img2*2-1,classonehot)
+        return (img, img2,classonehot)
 
 
+#    def get_label(self):
+#        return self.idx_to_class
 
     def __len__(self):
         l=len(self.samples)
-        if(self.mode=="test" or self.mode=="query"):
-            l=l/20
+        #if(self.mode=="test" or self.mode=="query"):
+            #l=l/20
         return l
