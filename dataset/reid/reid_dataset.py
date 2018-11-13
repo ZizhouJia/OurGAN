@@ -28,7 +28,11 @@ transform_img = transforms.Compose([
                          transforms.ToTensor(),
                          normalizer,
                     ])
-
+transform_test = transforms.Compose([
+                         transforms.RectScale(256, 128),
+                         transforms.ToTensor(),
+                         normalizer,
+                    ])
 
 def pil_loader(path):
     with open(path, 'rb') as f:
@@ -77,13 +81,19 @@ class reid_dataset(torch.utils.data.Dataset):
     def __init__(self, root, loader=pil_loader,  transform=transform_img,load_data=False,mode="train"):
         self.mode=mode
 
+        if mode=="test":
+            transform=transform_test
+        if mode=="query":
+            transform=transform_test
         if load_data == True:
             if mode=="train":
                loadfile=open('processdata/traindata.pkl','rb')
             elif mode=="test":
-               loadfile=open('processdata/testdata.pkl','rb')
+                transform=transform_test
+                loadfile=open('processdata/testdata.pkl','rb')
             elif mode=="query":
-               loadfile=open('processdata/querydata.pkl','rb')
+                transform=transform_test
+                loadfile=open('processdata/querydata.pkl','rb')
             samples=pickle.load(loadfile)
             classitem=pickle.load(loadfile)
             idx_to_class=pickle.load(loadfile)
@@ -116,14 +126,15 @@ class reid_dataset(torch.utils.data.Dataset):
 
 
     def __getitem__(self, index):
-        index=random.randint(0, self.__len__()-1)
-        img,classidx = self.samples[index]
-        #print(classidx)
         if self.mode!="train":
+            img,classidx = self.samples[index]
+            tmp=self.idx_to_class[classidx]
+            label=int(tmp[0])*1000+int(tmp[1])*100+int(tmp[2])*10+int(tmp[3])
             if self.transform is not None:
                 img = self.transform(img)
-            return (img,classidx)
-
+            return (img,label)
+        index=random.randint(0, self.__len__()-1)
+        img,classidx = self.samples[index]
 
         coindex = random.randint(0, len(self.classitem[classidx])-1)
         (img2, index2) = self.classitem[classidx][coindex]

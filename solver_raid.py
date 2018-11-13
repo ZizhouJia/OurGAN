@@ -92,32 +92,39 @@ def extract_feature(encoder,data_loader):
     return features_array.view(features_array.size()[0],-1),label_array.cpu().numpy()
 
 
-def calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2):
-    scores=np.zeros(features1.size()[0])
-    sample_number=np.zeros(features1.size()[0])
+def calculate_score(verifier,features1,label1,features2,label2):
+    scores=np.zeros(10000)
+    sample_number=np.zeros(10000)
     total_correct=0
     for i in range(0,len(features1)):
         if(i%100==0):
             print("current/total: %d/%d"%(i,features1.size()[0]))
         feature=features1[i]
         current_label=label1[i]
+        #print("current_label")
+        #print(current_label)
         feature=feature.repeat(features2.size()[0],1)
         score=torch.sum((feature-features2).pow(2),1)
         score=score.detach().cpu().numpy()
         # score=score.detach().cpu().numpy()
         arg=np.argsort(score)
+        #print(arg)
         score=score[arg]
+        #print("score")
+        #print(score)
         score=score[0:10]
         labels=label2
         labels=labels[arg]
+        #print("test labels")
+        #print(labels)
         labels=labels[0:10]
-        #print("test:"+labels[0]+":"+labelname2[labels[0]]+"query:"+current_label+":"+labelname1[current_label])
-        if(labelname2[labels[0]]==labelname1[current_label]):
+        #print("test:"+str(labels[0])+":"+str(labelname2[labels[0]])+"query:"+str(current_label)+":"+str(labelname1[current_label]))
+        if(labels[0]==current_label):
             total_correct+=1
         current_find=0
         total_score=0
         for i in range(0,10):
-            if(labelname1[current_label]==labelname2[labels[i]]):
+            if(current_label==labels[i]):
                 current_find+=1
                 total_score+=current_find/(i+1)
         avg_score=0
@@ -133,17 +140,17 @@ def calculate_score(verifier,features1,label1,labelname1,features2,label2,labeln
     top1_acc=float(total_correct)/features1.size()[0]
     return top1_acc,mAP
 
-def test_data(encoder,verifier,data_loader1,labelname1,data_loader2,labelname2):
+def test_data(encoder,verifier,data_loader1,data_loader2):
     features1,label1=extract_feature(encoder,data_loader1)
     features2,label2=extract_feature(encoder,data_loader2)
-    top1_acc,mAP=calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2)
+    top1_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
     return top1_acc,mAP
 
 
 
 
 @click.command()
-@click.option('--batch_size',default=8,type=int, help="the batch size of train")
+@click.option('--batch_size',default=14,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
@@ -208,7 +215,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 #encoder image
                 s1,d1=encoder(x1)
                 s2,d2=encoder(x2)
-                #decoder image and produce image
+                #decoder image and produce im
                 x1_fake=decoder(s2,d1)
                 x2_fake=decoder(s1,d2)
                 #discriminator for feature
@@ -285,10 +292,10 @@ def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):
     encoder=models[0]
     verifer=models[4]
 
-    query_loader,labelname_query,test_loader,labelname_test=generate_dataset(dataset_name,batch_size,train=False)
+    query_loader,test_loader=generate_dataset(dataset_name,batch_size,train=False)
     #print(labelname_test)
     #print(labelname_query)
-    top1_acc,mAP=test_data(encoder,verifer,query_loader,labelname_query,test_loader,labelname_test)
+    top1_acc,mAP=test_data(encoder,verifer,query_loader,test_loader)
     print("the top1 acc is: %.4f mAP: %.4f"%(top1_acc,mAP))
 
 
