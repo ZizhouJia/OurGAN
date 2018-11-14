@@ -6,6 +6,7 @@ import torch
 import torchvision.transforms as transforms
 import os
 import random
+import key_point_tools.key_point as key_point
 import cv2
 import sys
 import numpy as np
@@ -125,7 +126,6 @@ class reid_dataset(torch.utils.data.Dataset):
 
 
     def __getitem__(self, index):
-
         if self.mode!="train":
             img,classidx = self.samples[index]
             tmp=self.idx_to_class[classidx]
@@ -133,8 +133,7 @@ class reid_dataset(torch.utils.data.Dataset):
             imgn=np.array(img)
             imgn=imgn.astype(np.uint8)
             #img2=img2.astype(np.uint8)
-            cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+str(label)+'.jpg',imgn)
-            #cv2.imwrite(str(classidx)+'-02.jpg',img2)
+            #cv2.imwrite('tmp_output/'+self.mode+'/'+str(label)+'-'+str(classidx)+'.jpg',imgn)
             if self.transform is not None:
                 img = self.transform(img)
             return (img,label)

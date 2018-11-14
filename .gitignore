@@ -2,6 +2,7 @@ checkpoints/*
 dataset/mnist_color/data/*
 dataset/face_point/data/*
 dataset/reid/DukeMTMC-reID/*
+tmp_output/*
 key_point_tools/shape_predictor_68_face_landmarks.dat
 *.pyc
 .remote-sync.json
