@@ -7,6 +7,7 @@ from reid import create
 from reid.embedding import EltwiseSubEmbed
 from reid.multi_branch import SiameseNet
 import math
+import center_loss
 
 def weight_init_normal(m):
     classname=m.__class__.__name__
@@ -169,23 +170,10 @@ class discriminator_for_difference(nn.Module):
 
 
 class verification_classifier(nn.Module):
-    def __init__(self):
+    def __init__(self,num_classes,feat_dim,size_average=True):
         super(verification_classifier,self).__init__()
-        num_features=1024
-        num_classes=2
-        self.bn=nn.BatchNorm1d(num_features)
-        self.bn.weight.data.fill_(1)
-        self.bn.bias.data.zero_()
-        self.classifier = nn.Linear(num_features, num_classes)
-        self.classifier.weight.data.normal_(0, 0.001)
-        self.classifier.bias.data.zero_()
+        self.center_loss=center_loss.CenterLoss(num_classes,feat_dim,size_average)
         #self.sigmoid=nn.Sigmoid()
 
-    def forward(self,x1,x2):
-        x=x1-x2
-        x=x.pow(2)
-        x=self.bn(x)
-        x=x.view(x.size(0),-1)
-        x=self.classifier(x)
-        #x=self.sigmoid(x)
-        return x
+    def forward(self,feature,label):
+        return self.center_loss(label,feature)

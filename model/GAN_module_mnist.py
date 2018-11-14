@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import center_loss
 
 class encoder(nn.Module):
     def __init__(self):
@@ -91,19 +92,11 @@ class discriminator_for_difference(nn.Module):
         return out.view(out.size()[0],-1)
 
 
-class verifier(nn.Module):
-    def __init__(self):
-        super(verifier,self).__init__()
-        self.bn=nn.BatchNorm2d(32)
-        self.linear=nn.Conv2d(32,1,kernel_size=1,stride=1,padding=0)
-        self.sig=nn.Sigmoid()
+class verification_classifier(nn.Module):
+    def __init__(self,num_classes,feat_dim,size_average=True):
+        super(verification_classifier,self).__init__()
+        self.center_loss=center_loss.CenterLoss(num_classes,feat_dim,size_average)
+        #self.sigmoid=nn.Sigmoid()
 
-    def forward(self,feature1,feature2):
-        feature1=feature1.view(-1,32,1,1)
-        feature2=feature2.view(-1,32,1,1)
-        feature=feature1-feature2
-        feature=feature.pow(2)
-        feature=self.bn(feature)
-        feature=self.linear(feature)
-        score=self.sig(feature)
-        return score.view(-1)
+    def forward(self,feature,label):
+        return self.center_loss(label,feature)

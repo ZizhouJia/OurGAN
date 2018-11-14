@@ -11,6 +11,10 @@ from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
 
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+
+
 def init_models(models,init_type="default"):
     init_func=weights_init(init_type)
     for model in models:
@@ -53,9 +57,10 @@ def restore_models(models,model_name,dataset_name,save_path="checkpoints"):
 
     if(not os.path.exists(path)):
         os.mkdir(path)
+    #,"decoder.pkl","image_dis.pkl","feature_classifier.pkl","verifier.pkl"
 
-    file_name=["encoder.pkl","decoder.pkl","image_dis.pkl","feature_classifier.pkl","verifier.pkl"]
-    for i in range(0,len(models)):
+    file_name=["encoder.pkl"]
+    for i in range(0,1):
         models[i].load_state_dict(torch.load(os.path.join(path,file_name[i])))
 
 
@@ -92,7 +97,7 @@ def extract_feature(encoder,data_loader):
     return features_array.view(features_array.size()[0],-1),label_array.cpu().numpy()
 
 
-def calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2):
+def calculate_score(features1,label1,labelname1,features2,label2,labelname2):
     scores=np.zeros(features1.size()[0])
     sample_number=np.zeros(features1.size()[0])
     total_correct=0
@@ -133,21 +138,21 @@ def calculate_score(verifier,features1,label1,labelname1,features2,label2,labeln
     top1_acc=float(total_correct)/features1.size()[0]
     return top1_acc,mAP
 
-def test_data(encoder,verifier,data_loader1,labelname1,data_loader2,labelname2):
+def test_data(encoder,data_loader1,labelname1,data_loader2,labelname2):
     features1,label1=extract_feature(encoder,data_loader1)
     features2,label2=extract_feature(encoder,data_loader2)
-    top1_acc,mAP=calculate_score(verifier,features1,label1,labelname1,features2,label2,labelname2)
+    top1_acc,mAP=calculate_score(features1,label1,labelname1,features2,label2,labelname2)
     return top1_acc,mAP
 
 
 
 
 @click.command()
-@click.option('--batch_size',default=8,type=int, help="the batch size of train")
+@click.option('--batch_size',default=32,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.001,0.01,0.0001,0.001,0.001],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--learning_rate',default=[0.001,0.01,0.0001,0.001,0.01],nargs=5,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_g_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_g_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
@@ -161,7 +166,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     models=generate_models(model_name)
 
-    init_models(models,optimizer_type)
+    # init_models(models,optimizer_type)
 
     train_eval_switch(models)
 
@@ -189,7 +194,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
             if(step%steps_per_tune==0):
                 tune=1-tune
-            #tune=1
+            tune=1
             #just optimize the feature discriminator
             if(tune==0 and step%10!=0):
                 #encoder image
@@ -209,57 +214,53 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 s1,d1=encoder(x1)
                 s2,d2=encoder(x2)
                 #decoder image and produce image
-                x1_fake=decoder(s2,d1)
-                x2_fake=decoder(s1,d2)
-                #discriminator for feature
-                d_f1=feature_dis(d1)
-                d_f2=feature_dis(d2)
-                #discriminator for image real and fake
-                d_i1r=image_dis(x1)
-                d_i2r=image_dis(x2)
-                d_i1f=image_dis(x1_fake)
-                d_i2f=image_dis(x2_fake)
+                # x1_fake=decoder(s2,d1)
+                # x2_fake=decoder(s1,d2)
+                # #discriminator for feature
+                # d_f1=feature_dis(d1)
+                # d_f2=feature_dis(d2)
+                # #discriminator for image real and fake
+                # d_i1r=image_dis(x1)
+                # d_i2r=image_dis(x2)
+                # d_i1f=image_dis(x1_fake)
+                # d_i2f=image_dis(x2_fake)
                 #calculate the verifier label
-                id=torch.argmax(clas,1)
-                half_size=id.size()[0]/2
-                label=(id[:half_size]==id[half_size:]).long()
-                label2=(id==id).long()
-                feature1=torch.cat((s1[:half_size],s2[:half_size],s1[:int(batch_size/3)]),0)
-                feature2=torch.cat((s1[half_size:],s2[half_size:],s2[:int(batch_size/3)]),0)
-                label=torch.cat((label,label,label2[:int(batch_size/3)]),0)
+                label=torch.argmax(clas,1)
+                label=torch.cat((label,label),0)
+                feature=torch.cat((s1,s2),0)
                 #calculate the verify result
-                v_pred=verifier(feature1,feature2)
+                v_loss=verifier(feature,label)
                 #calculate the real image and fake image l1 loss
-                reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
-                #calculate the image discriminator loss
-                image_d_loss=(D_real_loss(d_i1r,train_method)+D_real_loss(d_i2r,train_method)+D_fake_loss(d_i1f,train_method)+D_fake_loss(d_i2f,train_method))/2
-                #calculate the image generator loss
-                image_g_loss=(G_fake_loss(d_i1f,train_method)+G_fake_loss(d_i2f,train_method))/2
-                #calculate the feature discriminator loss
-                feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
-                #calculate the feature generator loss
-                feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
+                # reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
+                # #calculate the image discriminator loss
+                # image_d_loss=(D_real_loss(d_i1r,train_method)+D_real_loss(d_i2r,train_method)+D_fake_loss(d_i1f,train_method)+D_fake_loss(d_i2f,train_method))/2
+                # #calculate the image generator loss
+                # image_g_loss=(G_fake_loss(d_i1f,train_method)+G_fake_loss(d_i2f,train_method))/2
+                # #calculate the feature discriminator loss
+                # feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
+                # #calculate the feature generator loss
+                # feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
                 #calculate the verification loss
-
-                v_loss=verify_loss(v_pred,label)
                 #calcuate the total loss of the multitask
-                total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
+                # total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
 
-                total_loss+=verify_loss_param*v_loss
+                total_loss=verify_loss_param*v_loss
 
-                if(step%10==0):
-                    report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
+                # if(step%10==0):
+                #     report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
+                if(step%50==0):
+                    print(total_loss.detach().cpu().item())
 
                 if(tune!=0):
                     #optimize for the discriminator
-                    image_d_loss.backward(retain_graph=True)
-                    image_d_optimizer.step()
-                    zero_grad_for_all(optimizers)
+                    # image_d_loss.backward(retain_graph=True)
+                    # image_d_optimizer.step()
+                    # zero_grad_for_all(optimizers)
 
                     #optimize for the encoder decoder and verifier
                     total_loss.backward()
                     verifier_optimizer.step()
-                    decoder_optimizer.step()
+                    # decoder_optimizer.step()
                     encoder_optimizer.step()
                     zero_grad_for_all(optimizers)
                     #print(feature1)
@@ -283,12 +284,12 @@ def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):
     restore_models(models,model_name,dataset_name,model_save_path)
     print("restore models succeed")
     encoder=models[0]
-    verifer=models[4]
+    # verifer=models[4]
 
     query_loader,labelname_query,test_loader,labelname_test=generate_dataset(dataset_name,batch_size,train=False)
     #print(labelname_test)
     #print(labelname_query)
-    top1_acc,mAP=test_data(encoder,verifer,query_loader,labelname_query,test_loader,labelname_test)
+    top1_acc,mAP=test_data(encoder,query_loader,labelname_query,test_loader,labelname_test)
     print("the top1 acc is: %.4f mAP: %.4f"%(top1_acc,mAP))
 
 

@@ -16,9 +16,9 @@ import torch.utils.data as Data
 import utils.data_provider as data_provider
 import utils.random_noise_producer as random_noise_producer
 
-import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
+# import dataset.face_point.FaceDatasetFolder as FaceDatasetFolder
 import dataset.reid.reid_dataset as reid_dataset
-import dataset.face_point.face_point_dataset as face_point_dataset
+# import dataset.face_point.face_point_dataset as face_point_dataset
 
 import math
 
@@ -158,17 +158,17 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
             mnist_edge_loader=data_provider.data_provider(mnist_edge.mnist_edge(path="dataset/mnist_color/data/raw/",train=False),batch_size=batch_size)
             return mnist_loader,mnist_edge_loader
 
-    if(dataset_name=='face_point'):
-        print("loading dataset...")
-        if(train):
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-
-            return  feature_loader
-        else:
-            feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
-            feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            return feature_loader
+    # if(dataset_name=='face_point'):
+    #     print("loading dataset...")
+    #     if(train):
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/train/",load_data=True,train=True)
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #
+    #         return  feature_loader
+    #     else:
+    #         feature_datasets = face_point_dataset.face_point_dataset(root="dataset/face_point/data/test/",load_data=True,train=False)
+    #         feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
+    #         return feature_loader
 
 
     if(dataset_name=='mnist_type'):
@@ -216,7 +216,7 @@ def generate_models(model_name):
         models.append(image_dis.cuda())
         feature_dis=GAN_module_mnist.discriminator_for_difference()
         models.append(feature_dis.cuda())
-        verifier=GAN_module_mnist.verifier()
+        verifier=GAN_module_mnist.verification_classifier(10,32)
         models.append(verifier.cuda())
 
 
@@ -253,6 +253,6 @@ def generate_models(model_name):
         models.append(image_dis.cuda())
         feature_dis=GAN_module_reid.discriminator_for_difference()
         models.append(feature_dis.cuda())
-        verifier_class=GAN_module_reid.verification_classifier()
+        verifier_class=GAN_module_reid.verification_classifier(703,1024)
         models.append(verifier_class.cuda())
     return models

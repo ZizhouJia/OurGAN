@@ -6,3 +6,4 @@ key_point_tools/shape_predictor_68_face_landmarks.dat
 *.pyc
 .remote-sync.json
 test_output/*
+processdata/*
