@@ -150,7 +150,7 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 
 
 @click.command()
-@click.option('--batch_size',default=14,type=int, help="the batch size of train")
+@click.option('--batch_size',default=2,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
@@ -190,6 +190,8 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
         print("begin the epoch : %d"%(i))
         tune=0
         for step,(x1,x2,clas) in enumerate(data_loader):
+
+
             x1=x1.cuda()
             x2=x2.cuda()
             clas=clas.cuda()

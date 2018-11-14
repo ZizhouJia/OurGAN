@@ -130,6 +130,11 @@ class reid_dataset(torch.utils.data.Dataset):
             img,classidx = self.samples[index]
             tmp=self.idx_to_class[classidx]
             label=int(tmp[0])*1000+int(tmp[1])*100+int(tmp[2])*10+int(tmp[3])
+            imgn=np.array(img)
+            imgn=imgn.astype(np.uint8)
+            #img2=img2.astype(np.uint8)
+            cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+str(label)+'.jpg',imgn)
+            #cv2.imwrite(str(classidx)+'-02.jpg',img2)
             if self.transform is not None:
                 img = self.transform(img)
             return (img,label)
@@ -142,11 +147,34 @@ class reid_dataset(torch.utils.data.Dataset):
             coindex = random.randint(0, len(self.classitem[classidx])-1)
             (img2, index2) = self.classitem[classidx][coindex]
 
+        imgn1=np.array(img)
+        imgn2=np.array(img2)
+        imgn1=imgn1.astype(np.uint8)
+        imgn2=imgn2.astype(np.uint8)
+        #img2=img2.astype(np.uint8)
+        cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+self.idx_to_class[classidx]+'-01.jpg',imgn1)
+        cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+self.idx_to_class[classidx]+'-02.jpg',imgn2)
+
+        #img=np.array(img)
+        #img2=np.array(img2)
+        #img=img*std+mean
+        #img2=img2*std+mean
+
+        #img=img*255
+        #img2=img2*255
+
+        #img=img.astype(np.uint8)
+        #img2=img2.astype(np.uint8)
+        #cv2.imwrite(str(classidx)+'-01.jpg',img)
+        #cv2.imwrite(str(classidx)+'-02.jpg',img2)
+
         if self.transform is not None:
             img = self.transform(img)
             img2 = self.transform(img2)
         classonehot=self.classidx_onehot[classidx].astype(np.float32)
         #print(classonehot.dtype)
+
+
         return (img, img2,classonehot)
 
 
