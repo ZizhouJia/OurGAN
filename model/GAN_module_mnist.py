@@ -19,7 +19,7 @@ class encoder(nn.Module):
         layers.append(nn.BatchNorm2d(64))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.Conv2d(64,64,kernel_size=7,stride=1,padding=0,bias=True))
-        layers.append(nn.BatchNorm2d(64))
+        # layers.append(nn.BatchNorm2d(64))
         self.encoder_conv=nn.Sequential(*layers)
 
 
@@ -37,13 +37,13 @@ class decoder(nn.Module):
 
         layers=[]
         layers.append(nn.ConvTranspose2d(64,64,kernel_size=7,stride=1,padding=0,bias=False))
-        layers.append(nn.BatchNorm2d(64))
+        # layers.append(nn.BatchNorm2d(64))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.ConvTranspose2d(64,32,kernel_size=4,stride=2,padding=1,bias=False))
-        layers.append(nn.BatchNorm2d(32))
+        # layers.append(nn.BatchNorm2d(32))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.ConvTranspose2d(32,16,kernel_size=4,stride=2,padding=1,bias=False))
-        layers.append(nn.BatchNorm2d(16))
+        # layers.append(nn.BatchNorm2d(16))
         layers.append(nn.LeakyReLU(0.01,inplace=True))
         layers.append(nn.Conv2d(16,1,kernel_size=5,stride=1,padding=2,bias=False))
         layers.append(nn.Tanh())

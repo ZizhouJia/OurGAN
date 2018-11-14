@@ -172,8 +172,11 @@ class discriminator_for_difference(nn.Module):
 class verification_classifier(nn.Module):
     def __init__(self,num_classes,feat_dim,size_average=True):
         super(verification_classifier,self).__init__()
-        self.center_loss=center_loss.CenterLoss(num_classes,feat_dim,size_average)
+        self.center_loss=center_loss.CenterLoss(num_classes,feat_dim,False)
+        self.fc=nn.Linear(feat_dim,num_classes)
         #self.sigmoid=nn.Sigmoid()
 
     def forward(self,feature,label):
-        return self.center_loss(label,feature)
+        logit=self.fc(feature)
+        softmax_loss=F.cross_entropy(logit,label)
+        return self.center_loss(label,feature)*0.001+softmax_loss
