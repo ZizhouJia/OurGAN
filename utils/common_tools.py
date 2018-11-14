@@ -193,7 +193,7 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
             test_loader = Data.DataLoader(test_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
             query_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/query/",load_data=True,mode="query")
             query_loader = Data.DataLoader(query_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            return query_loader,query_datasets.idx_to_class,test_loader,test_datasets.idx_to_class
+            return query_loader,test_loader
 
 
 
