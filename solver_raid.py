@@ -98,10 +98,12 @@ def extract_feature(encoder,data_loader):
 
 
 def calculate_score(verifier,features1,label1,features2,label2):
-    scores=np.zeros(200000)
-    sample_number=np.zeros(200000)
-    total_correct=0
-    for i in range(0,len(features1)):
+    scores=np.zeros(10000)
+    sample_number=np.zeros(10000)
+    top1=0
+    top5=0
+    top10=0
+    for i in range(0,features1.size()[0]):
         if(i%100==0):
             print("current/total: %d/%d"%(i,features1.size()[0]))
         feature=features1[i]
@@ -126,13 +128,11 @@ def calculate_score(verifier,features1,label1,features2,label2):
         labels=labels[0:10]
         #print("test:"+str(labels[0])+":"+str(labelname2[labels[0]])+"query:"+str(current_label)+":"+str(labelname1[current_label]))
         if(labels[0]==current_label):
-            total_correct+=1
-
-        # print(labels[0])
-        # print(current_label)
-        # print(score)
-        # print(labels)
-        # print("*************************")
+            top1+=1
+        if(current_label in labels[0:5]):
+            top5+=1
+        if(current_label in labels[0:10]):
+            top10+=1
 
         current_find=0.0
         total_score=0.0
@@ -153,14 +153,17 @@ def calculate_score(verifier,features1,label1,features2,label2):
     for i in range(0,len(scores)):
         scores[i]=scores[i]/sample_number[i]
     mAP=np.mean(scores)
-    top1_acc=float(total_correct)/features1.size()[0]
-    return top1_acc,mAP
+    top1_acc=float(top1)/features1.size()[0]
+    top5_acc=float(top5)/features1.size()[0]
+    top10_acc=float(top10)/features1.size()[0]
+
+    return top1_acc,top5_acc,top10_acc,mAP
 
 def test_data(encoder,verifier,data_loader1,data_loader2):
     features1,label1=extract_feature(encoder,data_loader1)
     features2,label2=extract_feature(encoder,data_loader2)
-    top1_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
-    return top1_acc,mAP
+    top1_acc,top5_acc,top10_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
+    return top1_acc,top5_acc,top10_acc,mAP
 
 
 
@@ -186,25 +189,41 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     init_models(models,optimizer_type)
 
-    train_eval_switch(models)
-
     optimizers=generate_optimizers(models,learning_rate,optimizer_type)
 
     data_loader=generate_dataset(dataset_name,batch_size,train=True)
+
+    query_loader,test_loader=generate_dataset(dataset_name,batch_size,train=False)
 
     encoder_optimizer,decoder_optimizer,image_d_optimizer,feature_d_optimizer,verifier_optimizer=optimizers
 
     encoder,decoder,image_dis,feature_dis,verifier=models
 
+    best_acc=0
+
+    switch_epoch=[0,75,100]
+
+    learning_rates=[
+    [0.001,0.01,0.0001,0.0001,0.01],
+    [0.0001,0.001,0.0001,0.0001,0.001],
+    [0.00001,0.01,0.0001,0.0001,0.0001]
+    ]
 
     for i in range(0,epoch):
+        train_eval_switch(models)
         if(i%1==0):
             print("saving model....")
             save_models(models,model_name,dataset_name,model_save_path)
             print("save model succeed")
-
         print("begin the epoch : %d"%(i))
         tune=0
+
+        #switch to new optimizer
+        if(i in switch_epoch):
+            ind=switch_epoch.index(i)
+            optimizers=generate_optimizers(models,learning_rates[ind],optimizer_type)
+            encoder_optimizer,decoder_optimizer,image_d_optimizer,feature_d_optimizer,verifier_optimizer=optimizers
+
         for step,(x1,x2,clas) in enumerate(data_loader):
 
 
@@ -214,7 +233,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
             if(step%steps_per_tune==0):
                 tune=1-tune
-            #tune=1
+
             #just optimize the feature discriminator
             if(tune==0 and step%10!=0):
                 #encoder image
@@ -265,10 +284,11 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                 total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
 
                 total_loss=verify_loss_param*v_loss
-                if(step%50==0):
-                    print(total_loss.detach().cpu().item())
 
-                if(step%10==0):
+                # if(step%50==0):
+                #     print(total_loss.detach().cpu().item())
+
+                if(step%500==0):
                     report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
 
                 if(tune!=0):
@@ -284,6 +304,15 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
                     encoder_optimizer.step()
                     zero_grad_for_all(optimizers)
                     #print(feature1)
+
+        train_eval_switch(models,False)
+        top1_acc,top5_acc,top10_acc,mAP=test_data(encoder,verifier,query_loader,test_loader)
+        print("the top acc is: %.4f %.4f %.4f mAP: %.4f"%(top1_acc,top5_acc,top10_acc,mAP))
+        if(top1_acc>best_acc):
+            best_acc=top1_acc
+            save_models(models,model_name+"_best",dataset_name,model_save_path)
+
+
 
 
 
@@ -309,8 +338,8 @@ def test(batch_size,dataset_name,model_name,model_save_path,file_save_path):
     query_loader,test_loader=generate_dataset(dataset_name,batch_size,train=False)
     #print(labelname_test)
     #print(labelname_query)
-    top1_acc,mAP=test_data(encoder,verifer,query_loader,test_loader)
-    print("the top1 acc is: %.4f mAP: %.4f"%(top1_acc,mAP))
+    top1_acc,top5_acc,top10_acc,mAP=test_data(encoder,verifer,query_loader,test_loader)
+    print("the top acc is: %.4f %.4f %.4f mAP: %.4f"%(top1_acc,top5_acc,top10_acc,mAP))
 
 
 
