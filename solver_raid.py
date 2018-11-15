@@ -81,7 +81,7 @@ def train_eval_switch(models,train=True):
 def extract_feature(encoder,data_loader):
     features_array=None
     label_array=None
-    for step,(x1,label) in enumerate(data_loader):
+    for step,(x1,label,camera) in enumerate(data_loader):
         x1=x1.cuda()
         label=label.cuda()
         label=label.view(-1)
@@ -150,9 +150,9 @@ def calculate_score(verifier,features1,label1,features2,label2):
     print(scores)
     sample_number=sample_number[sample_number>0]
     print(sample_number)
-    for i in range(0,len(scores)):
-        scores[i]=scores[i]/sample_number[i]
-    mAP=np.mean(scores)
+    # for i in range(0,len(scores)):
+    #     scores[i]=scores[i]/sample_number[i]
+    mAP=np.mean(scores)/np.mean(sample_number)
     top1_acc=float(top1)/features1.size()[0]
     top5_acc=float(top5)/features1.size()[0]
     top10_acc=float(top10)/features1.size()[0]
