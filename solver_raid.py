@@ -12,7 +12,7 @@ from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 
@@ -141,22 +141,25 @@ def calculate_score(verifier,features1,label1,features2,label2):
         if(current_label in labels[0:10]):
             top10+=1
 
-        current_find=0
+        current_find=0.0
         total_score=0.0
         for i in range(0,10):
             if(current_label==labels[i]):
                 current_find+=1
-                total_score+=float(current_find)/(i+1)
-        avg_score=0
+                total_score+=(float(current_find)/(i+1))
+        avg_score=0.0
         if(current_find!=0):
             avg_score=total_score/current_find
         scores[int(current_label)]+=avg_score
         sample_number[int(current_label)]+=1
+    #print(scores[:])
     scores=scores[sample_number>0]
+    print(scores)
     sample_number=sample_number[sample_number>0]
-    for i in range(0,len(scores)):
-        scores[i]=scores[i]/sample_number[i]
-    mAP=np.mean(scores)
+    print(sample_number)
+    # for i in range(0,len(scores)):
+    #     scores[i]=scores[i]/sample_number[i]
+    mAP=np.mean(scores)/np.mean(sample_number)
     top1_acc=float(top1)/features1.size()[0]
     top5_acc=float(top5)/features1.size()[0]
     top10_acc=float(top10)/features1.size()[0]
@@ -175,10 +178,10 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 
 @click.command()
 @click.option('--batch_size',default=8,type=int, help="the batch size of train")
-@click.option('--epoch',default=500,type=int, help="the total epoch of train")
+@click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.01,0.1,0.001,0.001,0.1],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--learning_rate',default=[0.01,0.01,0.0001,0.001,0.1],nargs=5,type=float,help="the learning_rate of the four optimizer")
 @click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_g_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_g_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
@@ -230,12 +233,15 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
             encoder_optimizer,decoder_optimizer,image_d_optimizer,feature_d_optimizer,verifier_optimizer=optimizers
 
         for step,(x1,x2,clas) in enumerate(data_loader):
+
+
             x1=x1.cuda()
             x2=x2.cuda()
             clas=clas.cuda()
 
             if(step%steps_per_tune==0):
                 tune=1-tune
+
             #just optimize the feature discriminator
             if(tune==0 and step%10!=0):
                 #encoder image

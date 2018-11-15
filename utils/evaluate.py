@@ -7,7 +7,7 @@ import os
 # Evaluate
 def evaluate(qf,ql,qc,gf,gl,gc):
     query = qf
-    query
+    query=
     score = np.dot(gf,query)
     # predict index
     index = np.argsort(score)  #from small to large
