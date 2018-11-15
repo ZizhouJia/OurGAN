@@ -6,6 +6,7 @@ import torch
 import torchvision.transforms as transforms
 import os
 import random
+import key_point_tools.key_point as key_point
 import cv2
 import sys
 import numpy as np
@@ -48,6 +49,8 @@ def make_dataset(dir):
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in sorted(fnames):
             label=fname[0:4]
+            camera=fname[5:7]
+            #print(camera)
             if label not in idx_to_class:
                 idx_to_class.append(label)
 
@@ -55,7 +58,7 @@ def make_dataset(dir):
 
             path = os.path.join(root, fname)
             img = pil_loader(path)
-            item = (img,index)
+            item = (img,index,camera)
             #print(item)
             samples.append(item)
             #sys.exit(0)
@@ -70,7 +73,7 @@ def get_class_items(samples, classes):
         onehot=np.zeros((classlen), dtype=np.float32)
         onehot[i]=1.0
         classidx_onehot.append(onehot)
-    for i, (img, idx) in enumerate(samples):
+    for i, (img, idx,camera) in enumerate(samples):
         item = (img ,i)
         classitem[idx].append(item)
     return classitem,classidx_onehot
@@ -125,16 +128,19 @@ class reid_dataset(torch.utils.data.Dataset):
 
 
     def __getitem__(self, index):
-
         if self.mode!="train":
-            img,classidx = self.samples[index]
+            img,classidx,camera = self.samples[index]
             tmp=self.idx_to_class[classidx]
             label=int(tmp[0])*1000+int(tmp[1])*100+int(tmp[2])*10+int(tmp[3])
+            imgn=np.array(img)
+            imgn=imgn.astype(np.uint8)
+            #img2=img2.astype(np.uint8)
+            cv2.imwrite('tmp_output/'+self.mode+'/'+str(label)+'-'+camera+'-'+str(classidx)+'.jpg',imgn)
             if self.transform is not None:
                 img = self.transform(img)
-            return (img,label)
+            return (img,label,camera)
         index=random.randint(0, self.__len__()-1)
-        img,classidx = self.samples[index]
+        img,classidx,camera = self.samples[index]
 
         coindex = random.randint(0, len(self.classitem[classidx])-1)
         (img2, index2) = self.classitem[classidx][coindex]
@@ -142,11 +148,34 @@ class reid_dataset(torch.utils.data.Dataset):
             coindex = random.randint(0, len(self.classitem[classidx])-1)
             (img2, index2) = self.classitem[classidx][coindex]
 
+        imgn1=np.array(img)
+        imgn2=np.array(img2)
+        imgn1=imgn1.astype(np.uint8)
+        imgn2=imgn2.astype(np.uint8)
+        #img2=img2.astype(np.uint8)
+        cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+self.idx_to_class[classidx]+'-01.jpg',imgn1)
+        cv2.imwrite('tmp_output/'+self.mode+'/'+str(classidx)+'-'+self.idx_to_class[classidx]+'-02.jpg',imgn2)
+
+        #img=np.array(img)
+        #img2=np.array(img2)
+        #img=img*std+mean
+        #img2=img2*std+mean
+
+        #img=img*255
+        #img2=img2*255
+
+        #img=img.astype(np.uint8)
+        #img2=img2.astype(np.uint8)
+        #cv2.imwrite(str(classidx)+'-01.jpg',img)
+        #cv2.imwrite(str(classidx)+'-02.jpg',img2)
+
         if self.transform is not None:
             img = self.transform(img)
             img2 = self.transform(img2)
         classonehot=self.classidx_onehot[classidx].astype(np.float32)
         #print(classonehot.dtype)
+
+
         return (img, img2,classonehot)
 
 
