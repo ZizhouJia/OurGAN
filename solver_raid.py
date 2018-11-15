@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import click
 import utils.evaluate as evl
+import logging
 
 from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
@@ -65,9 +66,16 @@ def restore_models(models,model_name,dataset_name,save_path="checkpoints"):
         models[i].load_state_dict(torch.load(os.path.join(path,file_name[i])))
 
 
-def report_loss(reconst_loss,image_D_loss,image_G_loss,feature_D_loss,feature_G_loss,verification_loss,step):
-    print("In step %d  rstl:%.4f idl:%.4f igl:%.4f fdl:%.4f fgl:%.4f vl:%.4f"%(step,reconst_loss.cpu().item(),image_D_loss.cpu().item(),
-    image_G_loss.cpu().item(),feature_D_loss.cpu().item(),feature_G_loss.cpu().item(),verification_loss.cpu().item()))
+def report_loss(reconst_loss,image_D_loss,image_G_loss,feature_D_loss,feature_G_loss,verification_loss,step,epoch):
+    rstl=reconst_loss.cpu().item()
+    idl=image_D_loss.cpu().item()
+    igl=image_G_loss.cpu().item()
+    fdl=feature_D_loss.cpu().item()
+    fgl=feature_G_loss.cpu().item()
+    vl=verification_loss.cpu().item()
+    print("In step %d  rstl:%.4f idl:%.4f igl:%.4f fdl:%.4f fgl:%.4f vl:%.4f"%(step,rstl,idl,igl,fdl,fgl,vl))
+    logging.info("%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f"%(epoch,step,rstl,idl,igl,fdl,fgl,vl))
+
 
 
 def train_eval_switch(models,train=True):
@@ -178,12 +186,12 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 
 
 @click.command()
-@click.option('--batch_size',default=8,type=int, help="the batch size of train")
+@click.option('--batch_size',default=16,type=int, help="the batch size of train")
 @click.option('--epoch',default=100,type=int, help="the total epoch of train")
 @click.option('--dataset_name',default="DukeMTMC-reID",type=click.Choice(["mnist_type","DukeMTMC-reID"]),help="the string that defines the current dataset use")
 @click.option('--model_name',default="GAN_Duke",type=click.Choice(["GAN_mnist","GAN_Duke"]),help="the string that  defines the current model use")
-@click.option('--learning_rate',default=[0.01,0.01,0.0001,0.001,0.1],nargs=5,type=float,help="the learning_rate of the four optimizer")
-@click.option('--reconst_param',default=10.0,type=float,help="the reconstion loss coefficient")
+@click.option('--learning_rate',default=[0.01,0.01,0.0001,0.001,0.01],nargs=5,type=float,help="the learning_rate of the four optimizer")
+@click.option('--reconst_param',default=100.0,type=float,help="the reconstion loss coefficient")
 @click.option('--image_g_loss_param',default=1.0,type=float,help="the image discriminator loss coefficient")
 @click.option('--feature_g_loss_param',default=1.0,type=float,help="the feature discriminator loss coefficient")
 @click.option('--model_save_path',default="checkpoints/",type=str,help="the model save path")
@@ -195,8 +203,6 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     models=generate_models(model_name)
 
-    init_models(models,optimizer_type)
-
     optimizers=generate_optimizers(models,learning_rate,optimizer_type)
 
     data_loader=generate_dataset(dataset_name,batch_size,train=True)
@@ -207,14 +213,15 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
     encoder,decoder,image_dis,feature_dis,verifier=models
 
+    logging.basicConfig(filename="loss.log")
+
     best_acc=0
 
-    switch_epoch=[0,75,100]
+    switch_epoch=[40,70]
 
     learning_rates=[
-    [0.001,0.01,0.0001,0.0001,0.01],
-    [0.0001,0.001,0.0001,0.0001,0.001],
-    [0.00001,0.01,0.0001,0.0001,0.0001]
+    [0.001,0.001,0.0001,0.001,0.001],
+    [0.0001,0.0001,0.0001,0.001,0.0001]
     ]
 
     for i in range(0,epoch):
@@ -261,7 +268,7 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
             #calculate the image discriminator loss
             image_d_loss=D_real_loss(d_i1r,train_method)+D_fake_loss(d_i2f,train_method)
             #calculate the image generator loss
-            image_g_loss=G_fake_loss(d_i1f,train_method)
+            image_g_loss=G_fake_loss(d_i2f,train_method)
             #calculate the feature discriminator loss
             feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
             #calculate the feature generator loss
@@ -272,8 +279,8 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
             total_loss=verify_loss_param*v_loss
 
-            if(step%500==0):
-                report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
+            if(step%100==0):
+                report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step,i)
 
             #optimize for the feature discriminator
             feature_d_loss.backward(retain_graph=True)
