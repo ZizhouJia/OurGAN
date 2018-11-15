@@ -6,6 +6,7 @@ import random
 import cv2
 import numpy as np
 import click
+import utils.evaluate as evl
 
 from utils.common_tools import *
 import dataset.mnist_color.mnist_type as mnist_type
@@ -81,7 +82,9 @@ def train_eval_switch(models,train=True):
 def extract_feature(encoder,data_loader):
     features_array=None
     label_array=None
-    for step,(x1,label) in enumerate(data_loader):
+    cam_array=None
+
+    for step,(x1,label,cam) in enumerate(data_loader):
         x1=x1.cuda()
         label=label.cuda()
         label=label.view(-1)
@@ -94,7 +97,11 @@ def extract_feature(encoder,data_loader):
             label_array=label
         else:
             label_array=torch.cat((label_array,label),0)
-    return features_array.view(features_array.size()[0],-1),label_array.cpu().numpy()
+        if(cam_array is None):
+            cam_array=cam
+        else:
+            cam_array=torch.cat((cam_array,cam),0)
+    return features_array.view(features_array.size()[0],-1).numpy(),label_array.cpu().numpy(),cam_array.cpu().numpy()
 
 
 def calculate_score(verifier,features1,label1,features2,label2):
@@ -135,11 +142,11 @@ def calculate_score(verifier,features1,label1,features2,label2):
             top10+=1
 
         current_find=0
-        total_score=0
+        total_score=0.0
         for i in range(0,10):
             if(current_label==labels[i]):
                 current_find+=1
-                total_score+=current_find/(i+1)
+                total_score+=float(current_find)/(i+1)
         avg_score=0
         if(current_find!=0):
             avg_score=total_score/current_find
@@ -157,10 +164,11 @@ def calculate_score(verifier,features1,label1,features2,label2):
     return top1_acc,top5_acc,top10_acc,mAP
 
 def test_data(encoder,verifier,data_loader1,data_loader2):
-    features1,label1=extract_feature(encoder,data_loader1)
-    features2,label2=extract_feature(encoder,data_loader2)
-    top1_acc,top5_acc,top10_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
-    return top1_acc,top5_acc,top10_acc,mAP
+    features1,label1,cam1=extract_feature(encoder,data_loader1)
+    features2,label2,cam2=extract_feature(encoder,data_loader2)
+    # top1_acc,top5_acc,top10_acc,mAP=calculate_score(verifier,features1,label1,features2,label2)
+    return evl.get_evaluate(features1,label1,cam1,features2,label2,cam2)
+    # return top1_acc,top5_acc,top10_acc,mAP
 
 
 
