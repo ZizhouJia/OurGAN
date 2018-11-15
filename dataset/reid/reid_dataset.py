@@ -139,7 +139,7 @@ class reid_dataset(torch.utils.data.Dataset):
                 img = self.transform(img)
             return (img,label,camera)
         index=random.randint(0, self.__len__()-1)
-        img,classidx,camera = self.samples[index]
+        img,classidx = self.samples[index]
 
         coindex = random.randint(0, len(self.classitem[classidx])-1)
         (img2, index2) = self.classitem[classidx][coindex]

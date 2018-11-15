@@ -191,8 +191,7 @@ def test_data(encoder,verifier,data_loader1,data_loader2):
 @click.option('--init_weight_type',default="orthogonal",type=click.Choice(["default","gaussian","xavier","kaiming","orthogonal"]),help="the loss type of the train")
 @click.option('--optimizer_type',default="sgd",type=click.Choice(["adam","sgd"]),help="the loss type of the train")
 @click.option('--verify_loss_param',default=1,type=float,help="the same constrain")
-@click.option('--steps_per_tune',default=100,type=float,help="steps per tunes to swith the main work")
-def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_g_loss_param,feature_g_loss_param,model_save_path,train_method,init_weight_type,optimizer_type,verify_loss_param,steps_per_tune):
+def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,image_g_loss_param,feature_g_loss_param,model_save_path,train_method,init_weight_type,optimizer_type,verify_loss_param):
 
     models=generate_models(model_name)
 
@@ -235,84 +234,63 @@ def train(batch_size,epoch,dataset_name,model_name,learning_rate,reconst_param,i
 
         for step,(x1,x2,clas) in enumerate(data_loader):
 
-
             x1=x1.cuda()
             x2=x2.cuda()
             clas=clas.cuda()
 
-            if(step%steps_per_tune==0):
-                tune=1-tune
+            #encoder image
+            s1,d1=encoder(x1)
+            s2,d2=encoder(x2)
+            #decoder image and produce im
+            x1_fake=decoder(s2,d1)
+            x2_fake=decoder(s1,d2)
+            #discriminator for feature
+            d_f1=feature_dis(d1)
+            d_f2=feature_dis(d2)
+            #discriminator for image real and fake
+            d_i1r=image_dis(x1)
+            d_i2f=image_dis(x2_fake)
+            #calculate the verifier label
+            label=torch.argmax(clas,1)
+            label=torch.cat((label,label),0)
+            feature=torch.cat((s1,s2),0)
+            #calculate the verify result
+            v_loss=verifier(feature,label)
+            #calculate the real image and fake image l1 loss
+            reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
+            #calculate the image discriminator loss
+            image_d_loss=D_real_loss(d_i1r,train_method)+D_fake_loss(d_i2f,train_method)
+            #calculate the image generator loss
+            image_g_loss=G_fake_loss(d_i1f,train_method)
+            #calculate the feature discriminator loss
+            feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
+            #calculate the feature generator loss
+            feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
+            #calculate the verification loss
+            #calcuate the total loss of the multitask
+            total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
 
-            #just optimize the feature discriminator
-            if(tune==0 and step%10!=0):
-                #encoder image
-                s1,d1=encoder(x1)
-                s2,d2=encoder(x2)
-                #discriminator for feature
-                d_f1=feature_dis(d1)
-                d_f2=feature_dis(d2)
-                #calculate the feature discriminator loss
-                feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
-                feature_d_loss.backward()
-                feature_d_optimizer.step()
-                zero_grad_for_all(optimizers)
-            else:
-                #print("222")
-                #encoder image
-                s1,d1=encoder(x1)
-                s2,d2=encoder(x2)
-                #decoder image and produce im
-                x1_fake=decoder(s2,d1)
-                x2_fake=decoder(s1,d2)
-                #discriminator for feature
-                d_f1=feature_dis(d1)
-                d_f2=feature_dis(d2)
-                #discriminator for image real and fake
-                d_i1r=image_dis(x1)
-                d_i2r=image_dis(x2)
-                d_i1f=image_dis(x1_fake)
-                d_i2f=image_dis(x2_fake)
-                #calculate the verifier label
-                label=torch.argmax(clas,1)
-                label=torch.cat((label,label),0)
-                feature=torch.cat((s1,s2),0)
-                #calculate the verify result
-                v_loss=verifier(feature,label)
-                #calculate the real image and fake image l1 loss
-                reconst_loss=reconstruction_loss(x1,x1_fake)+reconstruction_loss(x2,x2_fake)
-                #calculate the image discriminator loss
-                image_d_loss=(D_real_loss(d_i1r,train_method)+D_real_loss(d_i2r,train_method)+D_fake_loss(d_i1f,train_method)+D_fake_loss(d_i2f,train_method))/2
-                #calculate the image generator loss
-                image_g_loss=(G_fake_loss(d_i1f,train_method)+G_fake_loss(d_i2f,train_method))/2
-                #calculate the feature discriminator loss
-                feature_d_loss=(D_classify_loss(d_f1,clas)+D_classify_loss(d_f2,clas))/2
-                #calculate the feature generator loss
-                feature_g_loss=(G_classify_loss(d_f1)+G_classify_loss(d_f2))/2
-                #calculate the verification loss
-                #calcuate the total loss of the multitask
-                total_loss=reconst_param*reconst_loss+image_g_loss_param*image_g_loss+feature_g_loss_param*feature_g_loss
+            total_loss=verify_loss_param*v_loss
 
-                total_loss=verify_loss_param*v_loss
+            if(step%500==0):
+                report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
 
-                # if(step%50==0):
-                #     print(total_loss.detach().cpu().item())
+            #optimize for the feature discriminator
+            feature_d_loss.backward(retain_graph=True)
+            feature_d_optimizer.step()
+            zero_grad_for_all(optimizers)
 
-                if(step%500==0):
-                    report_loss(reconst_loss,image_d_loss,image_g_loss,feature_d_loss,feature_g_loss,v_loss,step)
+            #optimize for the discriminator
+            image_d_loss.backward(retain_graph=True)
+            image_d_optimizer.step()
+            zero_grad_for_all(optimizers)
 
-                if(tune!=0):
-                    #optimize for the discriminator
-                    image_d_loss.backward(retain_graph=True)
-                    image_d_optimizer.step()
-                    zero_grad_for_all(optimizers)
-
-                    #optimize for the encoder decoder and verifier
-                    total_loss.backward()
-                    verifier_optimizer.step()
-                    decoder_optimizer.step()
-                    encoder_optimizer.step()
-                    zero_grad_for_all(optimizers)
-                    #print(feature1)
+            #optimize for the encoder decoder and verifier
+            total_loss.backward()
+            verifier_optimizer.step()
+            decoder_optimizer.step()
+            encoder_optimizer.step()
+            zero_grad_for_all(optimizers)
 
         train_eval_switch(models,False)
         top1_acc,top5_acc,top10_acc,mAP=test_data(encoder,verifier,query_loader,test_loader)
