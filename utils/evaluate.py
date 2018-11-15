@@ -7,11 +7,22 @@ import os
 # Evaluate
 def evaluate(qf,ql,qc,gf,gl,gc):
     query = qf
-    query=
-    score = np.dot(gf,query)
+    query=query[np.newaxis,:]
+    query=np.repeat(query,gf.shape[0],axis=0)
+    # print(query)
+    score=(query-gf)
+    score=score*score
+    #print(score)
+    score=np.sum(score,1)
+    #print(score)
+    # score = np.dot(gf,query)
     # predict index
     index = np.argsort(score)  #from small to large
-    index = index[::-1]
+    # print(score[index])
+    # print(ql)
+    #print(gl[index])
+    index = index[:]
+    #print(gl[index])
     #index = index[0:2000]
     # good index
     query_index = np.argwhere(gl==ql)
@@ -52,7 +63,6 @@ def compute_mAP(index, good_index, junk_index):
         else:
             old_precision=1.0
         ap = ap + d_recall*(old_precision + precision)/2
-
     return ap, cmc
 
 def get_evaluate(query_feature,query_label,query_cam,gallery_feature,gallery_label,gallery_cam):
@@ -65,7 +75,7 @@ def get_evaluate(query_feature,query_label,query_cam,gallery_feature,gallery_lab
             continue
         CMC = CMC + CMC_tmp
         ap += ap_tmp
-        print(i, CMC_tmp[0])
+        #print(i, CMC_tmp[0])
 
     CMC = CMC.float()
     CMC = CMC/len(query_label) #average CMC

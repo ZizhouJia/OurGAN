@@ -88,6 +88,7 @@ def extract_feature(encoder,data_loader):
         x1=x1.cuda()
         label=label.cuda()
         label=label.view(-1)
+        cam=cam.cuda()
         s,d=encoder(x1)
         if(features_array is None):
             features_array=s.detach()
@@ -101,7 +102,7 @@ def extract_feature(encoder,data_loader):
             cam_array=cam
         else:
             cam_array=torch.cat((cam_array,cam),0)
-    return features_array.view(features_array.size()[0],-1).numpy(),label_array.cpu().numpy(),cam_array.cpu().numpy()
+    return features_array.view(features_array.size()[0],-1).cpu().numpy(),label_array.cpu().numpy(),cam_array.cpu().numpy()
 
 
 def calculate_score(verifier,features1,label1,features2,label2):

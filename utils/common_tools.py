@@ -193,9 +193,9 @@ def generate_dataset(dataset_name,batch_size=32,train=True,test_cross_class=Fals
             feature_loader = Data.DataLoader(feature_datasets, batch_size=batch_size, shuffle=True, num_workers=0)
             return  feature_loader
         else:
-            test_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_test/",load_data=False,mode="test")
+            test_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/bounding_box_test/",load_data=True,mode="test")
             test_loader = Data.DataLoader(test_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
-            query_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/query/",load_data=False,mode="query")
+            query_datasets = reid_dataset.reid_dataset(root="dataset/reid/DukeMTMC-reID/query/",load_data=True,mode="query")
             query_loader = Data.DataLoader(query_datasets, batch_size=batch_size, shuffle=False, num_workers=0)
             return query_loader,test_loader
 

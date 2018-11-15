@@ -6,7 +6,6 @@ import torch
 import torchvision.transforms as transforms
 import os
 import random
-import key_point_tools.key_point as key_point
 import cv2
 import sys
 import numpy as np
@@ -49,7 +48,7 @@ def make_dataset(dir):
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in sorted(fnames):
             label=fname[0:4]
-            camera=fname[5:7]
+            camera=fname[6:7]
             #print(camera)
             if label not in idx_to_class:
                 idx_to_class.append(label)
@@ -58,7 +57,7 @@ def make_dataset(dir):
 
             path = os.path.join(root, fname)
             img = pil_loader(path)
-            item = (img,index,camera)
+            item = (img,index,int(camera))
             #print(item)
             samples.append(item)
             #sys.exit(0)
@@ -135,7 +134,7 @@ class reid_dataset(torch.utils.data.Dataset):
             imgn=np.array(img)
             imgn=imgn.astype(np.uint8)
             #img2=img2.astype(np.uint8)
-            cv2.imwrite('tmp_output/'+self.mode+'/'+str(label)+'-'+camera+'-'+str(classidx)+'.jpg',imgn)
+            # cv2.imwrite('tmp_output/'+self.mode+'/'+str(label)+'-c'+str(camera)+'-'+str(classidx)+'.jpg',imgn)
             if self.transform is not None:
                 img = self.transform(img)
             return (img,label,camera)
